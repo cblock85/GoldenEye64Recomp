@@ -1,0 +1,47 @@
+# Config file for Goldeneye 007 US Recompilation
+
+[input]
+entrypoint = 0x80000400
+# Paths are relative to the location of this config file.
+output_func_path = "RecompiledFuncs"
+#relocatable_sections_path = "overlays.us.txt"
+# Developer alternative: recompile from a TLBFREE ELF built from the decomp instead
+#elf_path = "ge007.tlbfree.elf"
+symbols_file_path = "dump.toml"
+rom_file_path = "ge007.tlbfree.z64"
+
+function_sizes = [
+    { name = "boot", size = 0x10 },
+    { name = "randomGetNext", size = 0x48 },
+    { name = "randomSetSeed", size = 0x14 },
+    { name = "randomGetNextFrom", size = 0x44 },
+]
+
+[patches]
+stubs = [
+    "tlbRandomGetNext",
+    # TLBFREE build: TLB machinery is dead code
+    "resolve_TLBaddress_for_InvalidHit",
+    "initTLBPrepareContext",
+]
+
+ignored = [
+    "next_interrupt",
+    "IP6_Hdlr",
+    "IP7_Hdlr",
+    "counter",
+    "cart",
+    "rcp",
+    "prenmi",
+    "sw2",
+    "swl",
+    "redispatch",
+    "enqueueRunning",
+    "__osDispatchThreadSave",
+
+]
+
+# [[patches.instruction]]
+# func = "boot"
+# vram = 0x70000470
+# value = 0x00000000 # -> nop
