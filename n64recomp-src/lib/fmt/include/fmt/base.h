@@ -109,7 +109,12 @@ import std;
 #endif
 
 // Detect consteval, C++20 constexpr extensions and std::is_constant_evaluated.
-#if !defined(__cpp_lib_is_constant_evaluated)
+// GoldenEye64Recomp: allow -DFMT_USE_CONSTEVAL=0 from the build to win. Newer
+// Apple clang accepts __cpp_consteval but rejects fmt's consteval format-string
+// checks, and the unguarded #define below would silently override the flag.
+#ifdef FMT_USE_CONSTEVAL
+// Externally configured; keep it.
+#elif !defined(__cpp_lib_is_constant_evaluated)
 #  define FMT_USE_CONSTEVAL 0
 #elif FMT_CPLUSPLUS < 201709L
 #  define FMT_USE_CONSTEVAL 0
