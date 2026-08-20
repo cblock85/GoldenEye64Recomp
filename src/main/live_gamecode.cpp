@@ -123,6 +123,55 @@ void unimplemented_libultra_stub(uint8_t* rdram, recomp_context* ctx) {
     ctx->r2 = 0;
 }
 
+
+// ---------------------------------------------------------------------------
+// libultra 64-bit helpers that neither the runtime implements nor the live
+// recompiler can build (they use dmfc1/dmtc1). Returning 0 from the generic stub
+// silently corrupted the game's math - positions came out as zero, which put the
+// player under the floor and characters in the air. Implemented here following
+// the same o32 conventions librecomp's math_routines.cpp uses: a 64-bit integer
+// argument arrives in (r4, r5) high/low, a second in (r6, r7); a 64-bit result
+// returns in (r2, r3); floats use f12/f0, doubles use f12/f0 as doubles.
+// ---------------------------------------------------------------------------
+static inline uint64_t ge_arg64(recomp_context* ctx) {
+    return ((uint64_t)(uint32_t)ctx->r4 << 32) | (uint32_t)ctx->r5;
+}
+static inline void ge_ret64(recomp_context* ctx, uint64_t value) {
+    ctx->r2 = (int32_t)(value >> 32);
+    ctx->r3 = (int32_t)(value >> 0);
+}
+
+void ge_ll_to_f(uint8_t*, recomp_context* ctx)  { ctx->f0.fl = (float)(int64_t)ge_arg64(ctx); }
+void ge_ll_to_d(uint8_t*, recomp_context* ctx)  { ctx->f0.d  = (double)(int64_t)ge_arg64(ctx); }
+void ge_f_to_ll(uint8_t*, recomp_context* ctx)  { ge_ret64(ctx, (uint64_t)(int64_t)ctx->f12.fl); }
+void ge_d_to_ll(uint8_t*, recomp_context* ctx)  { ge_ret64(ctx, (uint64_t)(int64_t)ctx->f12.d); }
+void ge_f_to_ull(uint8_t*, recomp_context* ctx) { ge_ret64(ctx, (uint64_t)ctx->f12.fl); }
+void ge_d_to_ull(uint8_t*, recomp_context* ctx) { ge_ret64(ctx, (uint64_t)ctx->f12.d); }
+void ge_ll_lshift(uint8_t*, recomp_context* ctx) {
+    ge_ret64(ctx, ge_arg64(ctx) << (uint32_t)(ctx->r6 & 63));
+}
+void ge_ll_rshift(uint8_t*, recomp_context* ctx) {
+    ge_ret64(ctx, (uint64_t)((int64_t)ge_arg64(ctx) >> (uint32_t)(ctx->r6 & 63)));
+}
+void ge_ll_mod(uint8_t*, recomp_context* ctx) {
+    int64_t a = (int64_t)ge_arg64(ctx);
+    int64_t b = (int64_t)(((uint64_t)(uint32_t)ctx->r6 << 32) | (uint32_t)ctx->r7);
+    ge_ret64(ctx, b != 0 ? (uint64_t)(a % b) : 0u);
+}
+void ge_ll_rem(uint8_t*, recomp_context* ctx) {
+    int64_t a = (int64_t)ge_arg64(ctx);
+    int64_t b = (int64_t)(((uint64_t)(uint32_t)ctx->r6 << 32) | (uint32_t)ctx->r7);
+    ge_ret64(ctx, b != 0 ? (uint64_t)(a % b) : 0u);
+}
+
+static const std::unordered_map<std::string, recomp_func_t*> ge_libultra_impls = {
+    {"__ll_to_f",   ge_ll_to_f},   {"__ll_to_d",   ge_ll_to_d},
+    {"__f_to_ll",   ge_f_to_ll},   {"__d_to_ll",   ge_d_to_ll},
+    {"__f_to_ull",  ge_f_to_ull},  {"__d_to_ull",  ge_d_to_ull},
+    {"__ll_lshift", ge_ll_lshift}, {"__ll_rshift", ge_ll_rshift},
+    {"__ll_mod",    ge_ll_mod},    {"__ll_rem",    ge_ll_rem},
+};
+
 // Runtime function resolver used for ALL calls inside the live-recompiled code.
 recomp_func_t* live_resolver(int32_t vram_signed) {
     uint32_t vram = static_cast<uint32_t>(vram_signed);
@@ -363,16 +412,27 @@ bool build_live_gamecode() {
     for (const LiveOverride& ov : live_override_list) {
         override_map[ov.vram] = ov.func;
     }
+    size_t implemented_here = 0;
     for (uint32_t vram : unimplemented_vrams) {
         if (override_map.find(vram) == override_map.end()) {
             auto name_it = unimplemented_names.find(vram);
-            const bool is_dp_counters = name_it != unimplemented_names.end() &&
-                                        name_it->second == "osDpGetCounters";
-            override_map[vram] = is_dp_counters ? osDpGetCounters_stub
-                                                : unimplemented_libultra_stub;
+            const std::string name = name_it != unimplemented_names.end() ? name_it->second : std::string{};
+            auto impl_it = ge_libultra_impls.find(name);
+            if (impl_it != ge_libultra_impls.end()) {
+                override_map[vram] = impl_it->second;
+                implemented_here++;
+            }
+            else if (name == "osDpGetCounters") {
+                override_map[vram] = osDpGetCounters_stub;
+                implemented_here++;
+            }
+            else {
+                override_map[vram] = unimplemented_libultra_stub;
+            }
         }
     }
-    printf("live_gamecode: %zu unimplemented libultra addresses stubbed\n", unimplemented_vrams.size());
+    printf("live_gamecode: %zu libultra addresses without a runtime shim (%zu implemented here, %zu inert stubs)\n",
+        unimplemented_vrams.size(), implemented_here, unimplemented_vrams.size() - implemented_here);
 
     override_map[GE_COSF_VRAM] = cosf_fallthrough_shim;
 
