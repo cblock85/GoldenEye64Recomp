@@ -6,7 +6,7 @@ set -e
 cd "$(dirname "$0")"
 
 APP="GoldenEye 007 Recompiled.app"
-BIN=build/GoldenRecomp
+BIN=${1:-build/GoldenRecomp}   # pass build-clean/GoldenRecomp for the no-game-code variant
 
 if [ ! -f "$BIN" ]; then
     echo "ERROR: $BIN not found — build first (./build_macos.sh or ninja -C build GoldenRecomp)"

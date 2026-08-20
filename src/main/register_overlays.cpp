@@ -1,5 +1,9 @@
 #include "ovl_patches.hpp"
+#ifdef GE_LIVE_GAMECODE
+#include "../../LiveGamecode/recomp_overlays.inl"
+#else
 #include "../../RecompiledFuncs/recomp_overlays.inl"
+#endif
 
 #include "librecomp/overlays.hpp"
 

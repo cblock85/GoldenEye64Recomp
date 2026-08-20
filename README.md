@@ -1,6 +1,6 @@
-# GoldenEye 007: Recompiled — macOS
+# GoldenEye64Recomp
 
-A native macOS port of **GoldenEye 007 (N64)**, built from the [100%-complete
+A native macOS (and Linux) port of **GoldenEye 007 (N64)**, built from the [100%-complete
 decompilation](https://gitlab.com/kholdfuzion/goldeneye_src) via static recompilation
 ([N64Recomp](https://github.com/N64Recomp/N64Recomp)) with the
 [RT64](https://github.com/rt64/rt64) renderer running on Metal. Based on the
@@ -29,11 +29,31 @@ retail `.z64` in the ROM picker and the app converts it for you.
 
 ## Build
 
+Two build modes:
+
+**Standard build** — the game code is generated from your ROM at build time and
+compiled into the executable (fastest at runtime; the binary is personal to you):
+
 ```bash
 cp /path/to/your/goldeneye.z64 baserom.u.z64
 ./build_macos.sh          # installs deps, generates game code from your ROM, builds
 ./make_macos_app.sh       # optional: wraps it into a double-clickable .app bundle
 ```
+
+**Clean build** — the executable ships with *zero game-derived code*. At first
+launch it recompiles all 2,984 game functions from your ROM in memory (~2 seconds)
+using N64Recomp's live recompiler. This is the variant suitable for distributing
+binaries (e.g. GitHub releases), since the app contains only original code plus
+symbol facts:
+
+```bash
+./build_macos.sh --clean
+./make_macos_app.sh build-clean/GoldenRecomp
+```
+
+**Linux** builds the same way with `./build_linux.sh` (add `--clean` for the
+distributable variant). Dependencies: `cmake ninja-build clang lld python3
+libsdl2-dev libfreetype-dev libgtk-3-dev xdelta3`.
 
 Run `./build/GoldenRecomp` (or open the generated **GoldenEye 007 Recompiled.app**).
 On first launch, pick your ROM — retail NTSC-U dumps are converted automatically

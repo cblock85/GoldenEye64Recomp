@@ -69,11 +69,19 @@ chmod +x lib/rt64/src/contrib/dxc/bin/arm64/dxc-macos 2>/dev/null || true
 xattr -dr com.apple.quarantine lib/rt64/src/contrib/dxc 2>/dev/null || true
 
 echo "== [6/6] Building GoldenRecomp"
+# Pass --clean to build the distributable variant: it ships NO game code and
+# recompiles everything from the user's ROM in-memory at launch.
+MODE_FLAG=""
+BUILD_DIR="build"
+if [ "$1" = "--clean" ]; then
+    MODE_FLAG="-DLIVE_GAMECODE=ON"
+    BUILD_DIR="build-clean"
+fi
 # The patches step cross-compiles MIPS patch code with brew clang + ld.lld.
-cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_POLICY_VERSION_MINIMUM=3.5
-ninja -C build GoldenRecomp
+cmake -S . -B $BUILD_DIR -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_POLICY_VERSION_MINIMUM=3.5 $MODE_FLAG
+ninja -C $BUILD_DIR GoldenRecomp
 
 echo ""
-echo "Done! Run with:  ./build/GoldenRecomp"
+echo "Done! Run with:  ./$BUILD_DIR/GoldenRecomp"
 echo "On first launch pick your retail NTSC-U .z64 in the ROM picker —"
 echo "the app converts it automatically (ge007.tlbfree.z64 also works)."

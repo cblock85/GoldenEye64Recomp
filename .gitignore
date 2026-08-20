@@ -13,8 +13,9 @@ RecompiledFuncs/
 RecompiledPatches/
 
 # Linux build output
-build/
-build-cmake/
+/build/
+/build-clean/
+/build-cmake/
 *.o
 
 # Windows build output
@@ -24,8 +25,6 @@ build-cmake/
 *.pdb
 
 # Data dumps
-data_dump.toml
-dump.toml
 
 # Local backups
 backups
@@ -65,8 +64,8 @@ rt64.log
 node_modules/
 
 # Recompiler Linux binary
-N64Recomp
-RSPRecomp
+/N64Recomp
+/RSPRecomp
 .DS_Store
 
 # Controller mappings file
@@ -82,8 +81,8 @@ gamecontrollerdb.txt
 rsp/aspMain.cpp
 rsp/njpgdspMain.cpp
 n64recomp-src/build/
-N64Recomp
-RSPRecomp
+/N64Recomp
+/RSPRecomp
 gamecontrollerdb.txt
 patches/*.d
 patches/patches.bin

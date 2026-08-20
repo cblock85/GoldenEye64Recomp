@@ -60,10 +60,32 @@ target_include_directories(RecompiledFuncs PRIVATE
     ${CMAKE_SOURCE_DIR}/lib/N64ModernRuntime/N64Recomp/include
 )
 
-file(GLOB FUNC_C_SOURCES ${CMAKE_SOURCE_DIR}/RecompiledFuncs/*.c)
-file(GLOB FUNC_CXX_SOURCES ${CMAKE_SOURCE_DIR}/RecompiledFuncs/*.cpp)
+option(LIVE_GAMECODE "Ship no recompiled game code; generate it at runtime from the user's ROM (clean distributable builds)" OFF)
 
-target_sources(RecompiledFuncs PRIVATE ${FUNC_C_SOURCES} ${FUNC_CXX_SOURCES})
+option(GE_HYBRID_DEBUG "Debug: also build static funcs as a dlopen-able library for live-vs-static bisection" OFF)
+
+if (LIVE_GAMECODE)
+    target_sources(RecompiledFuncs PRIVATE
+        ${CMAKE_SOURCE_DIR}/LiveGamecode/forwarders.c
+        ${CMAKE_SOURCE_DIR}/LiveGamecode/lookup.cpp
+    )
+    if (GE_HYBRID_DEBUG)
+        file(GLOB HYBRID_C_SOURCES ${CMAKE_SOURCE_DIR}/RecompiledFuncs/*.c)
+        add_library(StaticFuncsDL SHARED ${HYBRID_C_SOURCES})
+        target_compile_options(StaticFuncsDL PRIVATE -fno-strict-aliasing -Wno-unused-variable -Wno-implicit-function-declaration)
+        target_include_directories(StaticFuncsDL PRIVATE
+            ${CMAKE_SOURCE_DIR}/include
+            ${CMAKE_SOURCE_DIR}/lib/N64ModernRuntime/ultramodern/include
+            ${CMAKE_SOURCE_DIR}/lib/N64ModernRuntime/librecomp/include
+            ${CMAKE_SOURCE_DIR}/lib/N64ModernRuntime/N64Recomp/include
+        )
+        set_target_properties(StaticFuncsDL PROPERTIES LINK_FLAGS "-Wl,--allow-shlib-undefined")
+    endif()
+else()
+    file(GLOB FUNC_C_SOURCES ${CMAKE_SOURCE_DIR}/RecompiledFuncs/*.c)
+    file(GLOB FUNC_CXX_SOURCES ${CMAKE_SOURCE_DIR}/RecompiledFuncs/*.cpp)
+    target_sources(RecompiledFuncs PRIVATE ${FUNC_C_SOURCES} ${FUNC_CXX_SOURCES})
+endif()
 
 # PatchesLib - Library containing the recompiled output for any custom function patches
 add_library(PatchesLib STATIC)
@@ -148,6 +170,30 @@ if (EXISTS ${CMAKE_SOURCE_DIR}/shadercache/mm_shader_cache.bin)
         COMMAND file_to_c ${CMAKE_SOURCE_DIR}/shadercache/mm_shader_cache.bin mm_shader_cache_bytes ${CMAKE_CURRENT_BINARY_DIR}/mm_shader_cache.c ${CMAKE_CURRENT_BINARY_DIR}/mm_shader_cache.h
         DEPENDS ${CMAKE_SOURCE_DIR}/shadercache/mm_shader_cache.bin
     )
+endif()
+
+if (LIVE_GAMECODE)
+    target_compile_definitions(GoldenRecomp PRIVATE GE_LIVE_GAMECODE)
+    add_custom_command(OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/ge_dump_toml.c ${CMAKE_CURRENT_BINARY_DIR}/ge_dump_toml.h
+        COMMAND file_to_c ${CMAKE_SOURCE_DIR}/dump.toml ge_dump_toml ${CMAKE_CURRENT_BINARY_DIR}/ge_dump_toml.c ${CMAKE_CURRENT_BINARY_DIR}/ge_dump_toml.h
+        DEPENDS ${CMAKE_SOURCE_DIR}/dump.toml file_to_c
+    )
+    target_sources(GoldenRecomp PRIVATE
+        ${CMAKE_SOURCE_DIR}/src/main/live_gamecode.cpp
+        ${CMAKE_SOURCE_DIR}/lib/N64ModernRuntime/N64Recomp/src/config.cpp
+        ${CMAKE_CURRENT_BINARY_DIR}/ge_dump_toml.c
+    )
+    # config.cpp provides Context::from_symbol_file (toml symbol context parser)
+    set_source_files_properties(${CMAKE_SOURCE_DIR}/lib/N64ModernRuntime/N64Recomp/src/config.cpp PROPERTIES
+        INCLUDE_DIRECTORIES "${CMAKE_SOURCE_DIR}/lib/N64ModernRuntime/N64Recomp/lib/tomlplusplus/include;${CMAKE_SOURCE_DIR}/lib/N64ModernRuntime/N64Recomp/lib/fmt/include;${CMAKE_SOURCE_DIR}/lib/N64ModernRuntime/N64Recomp/src;${CMAKE_SOURCE_DIR}/lib/N64ModernRuntime/N64Recomp/include"
+    )
+    set_source_files_properties(${CMAKE_SOURCE_DIR}/src/main/live_gamecode.cpp PROPERTIES
+        INCLUDE_DIRECTORIES "${CMAKE_SOURCE_DIR}/lib/N64ModernRuntime/N64Recomp/include;${CMAKE_SOURCE_DIR}/lib/N64ModernRuntime/N64Recomp/lib/rabbitizer/include;${CMAKE_SOURCE_DIR}/lib/N64ModernRuntime/N64Recomp/lib/rabbitizer/cplusplus/include;${CMAKE_SOURCE_DIR}/lib/N64ModernRuntime/librecomp/include;${CMAKE_SOURCE_DIR}/lib/N64ModernRuntime/ultramodern/include;${CMAKE_SOURCE_DIR}/lib/N64ModernRuntime/thirdparty;${CMAKE_SOURCE_DIR}/lib/N64ModernRuntime/thirdparty/concurrentqueue;${CMAKE_BINARY_DIR}"
+    )
+    target_link_libraries(GoldenRecomp PRIVATE LiveRecomp fmt)
+    if (GE_HYBRID_DEBUG)
+        target_link_options(GoldenRecomp PRIVATE -Wl,--export-dynamic)
+    endif()
 endif()
 
 # Embed the retail->TLBFREE ROM patch so the app can convert an unmodified retail

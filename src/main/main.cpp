@@ -544,7 +544,19 @@ void release_preload(PreloadContext& context) {
 
 #endif
 
+#ifdef GE_LIVE_GAMECODE
+extern "C" bool live_gamecode_selftest();
+#endif
+
 int main(int argc, char** argv) {
+#ifdef GE_LIVE_GAMECODE
+    if (getenv("GE_LIVE_SELFTEST")) {
+        bool ok = live_gamecode_selftest();
+        printf("live selftest: %s\n", ok ? "OK" : "FAILED");
+        return ok ? 0 : 1;
+    }
+#endif
+
     recomp::Version project_version{};
     if (!recomp::Version::from_string(version_string, project_version)) {
         ultramodern::error_handling::message_box(("Invalid version string: " + version_string).c_str());
