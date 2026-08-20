@@ -29,6 +29,11 @@ export CMAKE_POLICY_VERSION_MINIMUM=3.5
 # The bundled fmt library's consteval format checking breaks on newer Apple clang
 export CXXFLAGS="-DFMT_USE_CONSTEVAL=0 ${CXXFLAGS:-}"
 
+# devkitPro (if installed) exports env vars that can steer CMake at its Switch
+# cross-compilation SDL2 instead of the Homebrew one; keep it out of this build.
+unset DEVKITPRO DEVKITARM DEVKITPPC PORTLIBS_PREFIX
+export CMAKE_PREFIX_PATH="$(brew --prefix)${CMAKE_PREFIX_PATH:+:$CMAKE_PREFIX_PATH}"
+
 LLVM_BIN="$(brew --prefix llvm)/bin"
 LLD_BIN="$(brew --prefix lld)/bin"
 export PATH="$LLVM_BIN:$LLD_BIN:$PATH"

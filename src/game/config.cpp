@@ -10,7 +10,7 @@
 
 #if defined(_WIN32)
 #include <Shlobj.h>
-#elif defined(__linux__)
+#else
 #include <unistd.h>
 #include <pwd.h>
 #endif

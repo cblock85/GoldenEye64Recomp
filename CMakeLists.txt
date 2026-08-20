@@ -361,7 +361,23 @@ if (CMAKE_SYSTEM_NAME MATCHES "Linux")
 endif()
 
 if (APPLE)
-    # macOS: dependencies via Homebrew (brew install sdl2 freetype)
+    # macOS: dependencies via Homebrew (brew install sdl2 freetype).
+    # If devkitPro is installed, its Switch cross-compilation SDL2 can be found
+    # first, which produces confusing errors (e.g. SDL_SysWMinfo without a
+    # 'cocoa' member). Point explicitly at the Homebrew SDL2 and ignore devkitPro.
+    list(APPEND CMAKE_IGNORE_PREFIX_PATH /opt/devkitpro)
+    list(APPEND CMAKE_IGNORE_PATH /opt/devkitpro /opt/devkitpro/portlibs/switch
+                                  /opt/devkitpro/portlibs/switch/include)
+    find_program(BREW_EXECUTABLE brew)
+    if (BREW_EXECUTABLE)
+        execute_process(COMMAND ${BREW_EXECUTABLE} --prefix sdl2
+            OUTPUT_VARIABLE BREW_SDL2_PREFIX OUTPUT_STRIP_TRAILING_WHITESPACE ERROR_QUIET)
+        if (BREW_SDL2_PREFIX AND EXISTS "${BREW_SDL2_PREFIX}/lib/cmake/SDL2")
+            set(SDL2_DIR "${BREW_SDL2_PREFIX}/lib/cmake/SDL2" CACHE PATH "Homebrew SDL2" FORCE)
+            list(PREPEND CMAKE_PREFIX_PATH "${BREW_SDL2_PREFIX}")
+        endif()
+    endif()
+
     find_package(SDL2 REQUIRED)
     find_package(Freetype REQUIRED)
 
