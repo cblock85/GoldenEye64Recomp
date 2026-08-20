@@ -46,6 +46,18 @@ if [ ! -f ge007.tlbfree.z64 ]; then
     fi
 fi
 
+# The patches build needs the decompilation's headers (lib/ge submodule).
+if [ ! -f lib/ge/include/PR/ultratypes.h ]; then
+    echo "Fetching decompilation headers into lib/ge ..."
+    if [ -d .git ]; then
+        git submodule update --init lib/ge || true
+    fi
+    if [ ! -f lib/ge/include/PR/ultratypes.h ]; then
+        rm -rf lib/ge
+        git clone --depth 1 https://github.com/n64decomp/007.git lib/ge
+    fi
+fi
+
 echo "== [4/6] Building the N64Recomp tools"
 if [ ! -f ./N64Recomp ] || [ -d ./N64Recomp ]; then
     rm -rf ./N64Recomp 2>/dev/null || true

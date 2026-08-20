@@ -71,6 +71,18 @@ if [ ! -f ./N64Recomp ]; then
     cp n64recomp-src/build/N64Recomp ./N64Recomp
 fi
 
+# The patches build needs the decompilation's headers (lib/ge submodule).
+if [ ! -f lib/ge/include/PR/ultratypes.h ]; then
+    echo "Fetching decompilation headers into lib/ge ..."
+    if [ -d .git ]; then
+        git submodule update --init lib/ge || true
+    fi
+    if [ ! -f lib/ge/include/PR/ultratypes.h ]; then
+        rm -rf lib/ge
+        git clone --depth 1 https://github.com/n64decomp/007.git lib/ge
+    fi
+fi
+
 echo "== [3/4] Configuring"
 cmake -S . -B $BUILD_DIR -G Ninja -DCMAKE_BUILD_TYPE=Release $MODE_FLAG
 

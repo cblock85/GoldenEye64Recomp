@@ -57,11 +57,17 @@ executable. Fastest to launch; the resulting binary is personal to you and
 should not be redistributed.
 
 ```bash
+git clone --recurse-submodules https://github.com/cblock85/GoldenEye64Recomp.git
+cd GoldenEye64Recomp
 cp /path/to/your/goldeneye.z64 baserom.u.z64
 
 ./build_macos.sh          # macOS
 ./build_linux.sh          # Linux
 ```
+
+(If you already cloned without `--recurse-submodules`, don't worry — the build
+scripts fetch what's missing. The `lib/ge` submodule is the decompilation, whose
+headers the gameplay patches compile against.)
 
 ### Clean build
 
