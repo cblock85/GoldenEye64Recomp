@@ -113,15 +113,24 @@ ov.append("static const LiveOverride live_override_list[] = {")
 for vram, name in sorted(entries):
     ov.append(f'    {{ 0x{vram:08X}u, {name} }},')
 ov.append("};")
-# Weak-declared librecomp shims for every ignored/reimplemented libultra name.
-# Whichever ones librecomp actually provides resolve to non-null and get
-# registered; the rest stay null and are skipped at runtime.
+# Shims that librecomp/ultramodern provide for libultra functions. Only emit
+# entries for symbols that are ACTUALLY defined: declaring an undefined symbol
+# and letting it resolve to null works with GNU ld but is a hard link error with
+# Apple's ld64 ("symbol(s) not found for architecture arm64").
+defined_shims = set()
+shim_sources = (glob.glob("lib/N64ModernRuntime/librecomp/src/*.cpp") +
+                glob.glob("lib/N64ModernRuntime/ultramodern/src/*.cpp"))
+for path in shim_sources:
+    for m in re.finditer(r'extern\s+"C"\s+void\s+(\w+_recomp)\s*\([^)]*\)\s*\{', open(path).read()):
+        defined_shims.add(m.group(1))
+print(f"{len(defined_shims)} libultra shims defined by the runtime")
+
 shim_names = []
 for name, vram in funcs:
-    if name in reimplemented or name in ignored_builtin:
+    if (name in reimplemented or name in ignored_builtin) and (name + "_recomp") in defined_shims:
         shim_names.append((vram, name + "_recomp"))
 for vram, n in shim_names:
-    ov.append(f'extern "C" __attribute__((weak)) void {n}(uint8_t* rdram, recomp_context* ctx);')
+    ov.append(f'extern "C" void {n}(uint8_t* rdram, recomp_context* ctx);')
 ov.append("")
 ov.append("static const LiveOverride live_shim_list[] = {")
 for vram, n in sorted(shim_names):

@@ -45,176 +45,90 @@ static const LiveOverride live_override_list[] = {
     { 0x804C0970u, select_ramrom_to_play },
     { 0x804D2518u, zbufClearCurrentPlayer },
 };
-extern "C" __attribute__((weak)) void __osSiDeviceBusy_recomp(uint8_t* rdram, recomp_context* ctx);
-extern "C" __attribute__((weak)) void __f_to_ull_recomp(uint8_t* rdram, recomp_context* ctx);
-extern "C" __attribute__((weak)) void osDpSetNextBuffer_recomp(uint8_t* rdram, recomp_context* ctx);
-extern "C" __attribute__((weak)) void osViBlack_recomp(uint8_t* rdram, recomp_context* ctx);
-extern "C" __attribute__((weak)) void osContGetReadData_recomp(uint8_t* rdram, recomp_context* ctx);
-extern "C" __attribute__((weak)) void __osSiRawWriteIo_recomp(uint8_t* rdram, recomp_context* ctx);
-extern "C" __attribute__((weak)) void osContGetQuery_recomp(uint8_t* rdram, recomp_context* ctx);
-extern "C" __attribute__((weak)) void _MakeMotorData_recomp(uint8_t* rdram, recomp_context* ctx);
-extern "C" __attribute__((weak)) void __ll_to_f_recomp(uint8_t* rdram, recomp_context* ctx);
-extern "C" __attribute__((weak)) void osStartThread_recomp(uint8_t* rdram, recomp_context* ctx);
-extern "C" __attribute__((weak)) void __ull_rem_recomp(uint8_t* rdram, recomp_context* ctx);
-extern "C" __attribute__((weak)) void __osPiRelAccess_recomp(uint8_t* rdram, recomp_context* ctx);
-extern "C" __attribute__((weak)) void __osContRamRead_recomp(uint8_t* rdram, recomp_context* ctx);
-extern "C" __attribute__((weak)) void osViGetCurrentFramebuffer_recomp(uint8_t* rdram, recomp_context* ctx);
-extern "C" __attribute__((weak)) void osDestroyThread_recomp(uint8_t* rdram, recomp_context* ctx);
-extern "C" __attribute__((weak)) void __osContGetInitData_recomp(uint8_t* rdram, recomp_context* ctx);
-extern "C" __attribute__((weak)) void __osSpGetStatus_recomp(uint8_t* rdram, recomp_context* ctx);
-extern "C" __attribute__((weak)) void __ull_rshift_recomp(uint8_t* rdram, recomp_context* ctx);
-extern "C" __attribute__((weak)) void osCreateMesgQueue_recomp(uint8_t* rdram, recomp_context* ctx);
-extern "C" __attribute__((weak)) void __osEepStatus_recomp(uint8_t* rdram, recomp_context* ctx);
-extern "C" __attribute__((weak)) void __ll_lshift_recomp(uint8_t* rdram, recomp_context* ctx);
-extern "C" __attribute__((weak)) void __osPfsRequestData_recomp(uint8_t* rdram, recomp_context* ctx);
-extern "C" __attribute__((weak)) void __osLeoInterrupt_recomp(uint8_t* rdram, recomp_context* ctx);
-extern "C" __attribute__((weak)) void osEepromLongRead_recomp(uint8_t* rdram, recomp_context* ctx);
-extern "C" __attribute__((weak)) void __osContRamWrite_recomp(uint8_t* rdram, recomp_context* ctx);
-extern "C" __attribute__((weak)) void osAiGetLength_recomp(uint8_t* rdram, recomp_context* ctx);
-extern "C" __attribute__((weak)) void osGetCount_recomp(uint8_t* rdram, recomp_context* ctx);
-extern "C" __attribute__((weak)) void osEPiRawWriteIo_recomp(uint8_t* rdram, recomp_context* ctx);
-extern "C" __attribute__((weak)) void osCreatePiManager_recomp(uint8_t* rdram, recomp_context* ctx);
-extern "C" __attribute__((weak)) void osPfsIsPlug_recomp(uint8_t* rdram, recomp_context* ctx);
-extern "C" __attribute__((weak)) void osEepromLongWrite_recomp(uint8_t* rdram, recomp_context* ctx);
-extern "C" __attribute__((weak)) void osCreateThread_recomp(uint8_t* rdram, recomp_context* ctx);
-extern "C" __attribute__((weak)) void __osPfsGetInitData_recomp(uint8_t* rdram, recomp_context* ctx);
-extern "C" __attribute__((weak)) void __osRepairPackId_recomp(uint8_t* rdram, recomp_context* ctx);
-extern "C" __attribute__((weak)) void __osSiCreateAccessQueue_recomp(uint8_t* rdram, recomp_context* ctx);
-extern "C" __attribute__((weak)) void osVirtualToPhysical_recomp(uint8_t* rdram, recomp_context* ctx);
-extern "C" __attribute__((weak)) void osMotorInit_recomp(uint8_t* rdram, recomp_context* ctx);
-extern "C" __attribute__((weak)) void osRecvMesg_recomp(uint8_t* rdram, recomp_context* ctx);
-extern "C" __attribute__((weak)) void osSendMesg_recomp(uint8_t* rdram, recomp_context* ctx);
-extern "C" __attribute__((weak)) void osPfsInit_recomp(uint8_t* rdram, recomp_context* ctx);
-extern "C" __attribute__((weak)) void osSetEventMesg_recomp(uint8_t* rdram, recomp_context* ctx);
-extern "C" __attribute__((weak)) void osPiGetStatus_recomp(uint8_t* rdram, recomp_context* ctx);
-extern "C" __attribute__((weak)) void osPiRawStartDma_recomp(uint8_t* rdram, recomp_context* ctx);
-extern "C" __attribute__((weak)) void osViSetMode_recomp(uint8_t* rdram, recomp_context* ctx);
-extern "C" __attribute__((weak)) void __osViInit_recomp(uint8_t* rdram, recomp_context* ctx);
-extern "C" __attribute__((weak)) void __ull_to_f_recomp(uint8_t* rdram, recomp_context* ctx);
-extern "C" __attribute__((weak)) void __ull_to_d_recomp(uint8_t* rdram, recomp_context* ctx);
-extern "C" __attribute__((weak)) void __osDevMgrMain_recomp(uint8_t* rdram, recomp_context* ctx);
-extern "C" __attribute__((weak)) void osContStartQuery_recomp(uint8_t* rdram, recomp_context* ctx);
-extern "C" __attribute__((weak)) void osViSetXScale_recomp(uint8_t* rdram, recomp_context* ctx);
-extern "C" __attribute__((weak)) void osSetThreadPri_recomp(uint8_t* rdram, recomp_context* ctx);
-extern "C" __attribute__((weak)) void rmonPrintf_recomp(uint8_t* rdram, recomp_context* ctx);
-extern "C" __attribute__((weak)) void __osSpSetStatus_recomp(uint8_t* rdram, recomp_context* ctx);
-extern "C" __attribute__((weak)) void __osCheckPackId_recomp(uint8_t* rdram, recomp_context* ctx);
-extern "C" __attribute__((weak)) void __osTimerServicesInit_recomp(uint8_t* rdram, recomp_context* ctx);
-extern "C" __attribute__((weak)) void __d_to_ll_recomp(uint8_t* rdram, recomp_context* ctx);
-extern "C" __attribute__((weak)) void __osPfsGetStatus_recomp(uint8_t* rdram, recomp_context* ctx);
-extern "C" __attribute__((weak)) void osPiStartDma_recomp(uint8_t* rdram, recomp_context* ctx);
-extern "C" __attribute__((weak)) void osPiRawReadIo_recomp(uint8_t* rdram, recomp_context* ctx);
-extern "C" __attribute__((weak)) void osSpTaskYield_recomp(uint8_t* rdram, recomp_context* ctx);
-extern "C" __attribute__((weak)) void osSpTaskYielded_recomp(uint8_t* rdram, recomp_context* ctx);
-extern "C" __attribute__((weak)) void __osSiGetAccess_recomp(uint8_t* rdram, recomp_context* ctx);
-extern "C" __attribute__((weak)) void rmonMain_recomp(uint8_t* rdram, recomp_context* ctx);
-extern "C" __attribute__((weak)) void osInvalICache_recomp(uint8_t* rdram, recomp_context* ctx);
-extern "C" __attribute__((weak)) void __osSetTimerIntr_recomp(uint8_t* rdram, recomp_context* ctx);
-extern "C" __attribute__((weak)) void __osSiRawReadIo_recomp(uint8_t* rdram, recomp_context* ctx);
-extern "C" __attribute__((weak)) void __osPiCreateAccessQueue_recomp(uint8_t* rdram, recomp_context* ctx);
-extern "C" __attribute__((weak)) void osSpTaskLoad_recomp(uint8_t* rdram, recomp_context* ctx);
-extern "C" __attribute__((weak)) void osPiGetCmdQueue_recomp(uint8_t* rdram, recomp_context* ctx);
-extern "C" __attribute__((weak)) void __osAiDeviceBusy_recomp(uint8_t* rdram, recomp_context* ctx);
-extern "C" __attribute__((weak)) void osMotorStart_recomp(uint8_t* rdram, recomp_context* ctx);
-extern "C" __attribute__((weak)) void osJamMesg_recomp(uint8_t* rdram, recomp_context* ctx);
-extern "C" __attribute__((weak)) void osSpTaskStartGo_recomp(uint8_t* rdram, recomp_context* ctx);
-extern "C" __attribute__((weak)) void osWritebackDCacheAll_recomp(uint8_t* rdram, recomp_context* ctx);
-extern "C" __attribute__((weak)) void __ll_to_d_recomp(uint8_t* rdram, recomp_context* ctx);
-extern "C" __attribute__((weak)) void __osResetGlobalIntMask_recomp(uint8_t* rdram, recomp_context* ctx);
-extern "C" __attribute__((weak)) void osSetTimer_recomp(uint8_t* rdram, recomp_context* ctx);
-extern "C" __attribute__((weak)) void __osInsertTimer_recomp(uint8_t* rdram, recomp_context* ctx);
-extern "C" __attribute__((weak)) void osAiSetFrequency_recomp(uint8_t* rdram, recomp_context* ctx);
-extern "C" __attribute__((weak)) void __osPackEepReadData_recomp(uint8_t* rdram, recomp_context* ctx);
-extern "C" __attribute__((weak)) void osContInit_recomp(uint8_t* rdram, recomp_context* ctx);
-extern "C" __attribute__((weak)) void __osPfsRWInode_recomp(uint8_t* rdram, recomp_context* ctx);
-extern "C" __attribute__((weak)) void osViSetSpecialFeatures_recomp(uint8_t* rdram, recomp_context* ctx);
-extern "C" __attribute__((weak)) void __f_to_ll_recomp(uint8_t* rdram, recomp_context* ctx);
-extern "C" __attribute__((weak)) void __osDequeueThread_recomp(uint8_t* rdram, recomp_context* ctx);
-extern "C" __attribute__((weak)) void __osViSwapContext_recomp(uint8_t* rdram, recomp_context* ctx);
-extern "C" __attribute__((weak)) void osViSwapBuffer_recomp(uint8_t* rdram, recomp_context* ctx);
-extern "C" __attribute__((weak)) void osEPiRawStartDma_recomp(uint8_t* rdram, recomp_context* ctx);
-extern "C" __attribute__((weak)) void __ll_mod_recomp(uint8_t* rdram, recomp_context* ctx);
-extern "C" __attribute__((weak)) void osPiReadIo_recomp(uint8_t* rdram, recomp_context* ctx);
-extern "C" __attribute__((weak)) void __ll_rshift_recomp(uint8_t* rdram, recomp_context* ctx);
-extern "C" __attribute__((weak)) void __osSiRelAccess_recomp(uint8_t* rdram, recomp_context* ctx);
-extern "C" __attribute__((weak)) void osPfsChecker_recomp(uint8_t* rdram, recomp_context* ctx);
-extern "C" __attribute__((weak)) void osViSetYScale_recomp(uint8_t* rdram, recomp_context* ctx);
-extern "C" __attribute__((weak)) void __osViGetCurrentContext_recomp(uint8_t* rdram, recomp_context* ctx);
-extern "C" __attribute__((weak)) void osAiSetNextBuffer_recomp(uint8_t* rdram, recomp_context* ctx);
-extern "C" __attribute__((weak)) void osGetThreadPri_recomp(uint8_t* rdram, recomp_context* ctx);
-extern "C" __attribute__((weak)) void osStopThread_recomp(uint8_t* rdram, recomp_context* ctx);
-extern "C" __attribute__((weak)) void osDpGetCounters_recomp(uint8_t* rdram, recomp_context* ctx);
-extern "C" __attribute__((weak)) void __ull_div_recomp(uint8_t* rdram, recomp_context* ctx);
-extern "C" __attribute__((weak)) void __osTimerInterrupt_recomp(uint8_t* rdram, recomp_context* ctx);
-extern "C" __attribute__((weak)) void osViRepeatLine_recomp(uint8_t* rdram, recomp_context* ctx);
-extern "C" __attribute__((weak)) void __osGetId_recomp(uint8_t* rdram, recomp_context* ctx);
-extern "C" __attribute__((weak)) void osInitialize_recomp(uint8_t* rdram, recomp_context* ctx);
-extern "C" __attribute__((weak)) void __osPackRequestData_recomp(uint8_t* rdram, recomp_context* ctx);
-extern "C" __attribute__((weak)) void __osSiRawStartDma_recomp(uint8_t* rdram, recomp_context* ctx);
-extern "C" __attribute__((weak)) void osEepromWrite_recomp(uint8_t* rdram, recomp_context* ctx);
-extern "C" __attribute__((weak)) void osViSetEvent_recomp(uint8_t* rdram, recomp_context* ctx);
-extern "C" __attribute__((weak)) void __osSpSetPc_recomp(uint8_t* rdram, recomp_context* ctx);
-extern "C" __attribute__((weak)) void __ull_divremi_recomp(uint8_t* rdram, recomp_context* ctx);
-extern "C" __attribute__((weak)) void osEepromRead_recomp(uint8_t* rdram, recomp_context* ctx);
-extern "C" __attribute__((weak)) void __osPiGetAccess_recomp(uint8_t* rdram, recomp_context* ctx);
-extern "C" __attribute__((weak)) void __ll_mul_recomp(uint8_t* rdram, recomp_context* ctx);
-extern "C" __attribute__((weak)) void __osContAddressCrc_recomp(uint8_t* rdram, recomp_context* ctx);
-extern "C" __attribute__((weak)) void __ll_div_recomp(uint8_t* rdram, recomp_context* ctx);
-extern "C" __attribute__((weak)) void osGetTime_recomp(uint8_t* rdram, recomp_context* ctx);
-extern "C" __attribute__((weak)) void osDpSetStatus_recomp(uint8_t* rdram, recomp_context* ctx);
-extern "C" __attribute__((weak)) void __d_to_ull_recomp(uint8_t* rdram, recomp_context* ctx);
-extern "C" __attribute__((weak)) void osCreateViManager_recomp(uint8_t* rdram, recomp_context* ctx);
-extern "C" __attribute__((weak)) void __ll_rem_recomp(uint8_t* rdram, recomp_context* ctx);
-extern "C" __attribute__((weak)) void osMotorStop_recomp(uint8_t* rdram, recomp_context* ctx);
-extern "C" __attribute__((weak)) void osContStartReadData_recomp(uint8_t* rdram, recomp_context* ctx);
-extern "C" __attribute__((weak)) void osYieldThread_recomp(uint8_t* rdram, recomp_context* ctx);
-extern "C" __attribute__((weak)) void osViGetNextFramebuffer_recomp(uint8_t* rdram, recomp_context* ctx);
-extern "C" __attribute__((weak)) void osEepromProbe_recomp(uint8_t* rdram, recomp_context* ctx);
-extern "C" __attribute__((weak)) void osLeoDiskInit_recomp(uint8_t* rdram, recomp_context* ctx);
-extern "C" __attribute__((weak)) void __osSpDeviceBusy_recomp(uint8_t* rdram, recomp_context* ctx);
-extern "C" __attribute__((weak)) void __osCheckId_recomp(uint8_t* rdram, recomp_context* ctx);
-extern "C" __attribute__((weak)) void __osContDataCrc_recomp(uint8_t* rdram, recomp_context* ctx);
-extern "C" __attribute__((weak)) void osInvalDCache_recomp(uint8_t* rdram, recomp_context* ctx);
-extern "C" __attribute__((weak)) void __osDpDeviceBusy_recomp(uint8_t* rdram, recomp_context* ctx);
-extern "C" __attribute__((weak)) void __osSpRawStartDma_recomp(uint8_t* rdram, recomp_context* ctx);
-extern "C" __attribute__((weak)) void __osPfsSelectBank_recomp(uint8_t* rdram, recomp_context* ctx);
-extern "C" __attribute__((weak)) void osMapTLBRdb_recomp(uint8_t* rdram, recomp_context* ctx);
-extern "C" __attribute__((weak)) void osUnmapTLB_recomp(uint8_t* rdram, recomp_context* ctx);
-extern "C" __attribute__((weak)) void __osSetFpcCsr_recomp(uint8_t* rdram, recomp_context* ctx);
-extern "C" __attribute__((weak)) void osSetIntMask_recomp(uint8_t* rdram, recomp_context* ctx);
-extern "C" __attribute__((weak)) void __osGetTLBHi_recomp(uint8_t* rdram, recomp_context* ctx);
-extern "C" __attribute__((weak)) void __osExceptionPreamble_recomp(uint8_t* rdram, recomp_context* ctx);
-extern "C" __attribute__((weak)) void __osException_recomp(uint8_t* rdram, recomp_context* ctx);
-extern "C" __attribute__((weak)) void send_mesg_recomp(uint8_t* rdram, recomp_context* ctx);
-extern "C" __attribute__((weak)) void handle_CpU_recomp(uint8_t* rdram, recomp_context* ctx);
-extern "C" __attribute__((weak)) void __osEnqueueAndYield_recomp(uint8_t* rdram, recomp_context* ctx);
-extern "C" __attribute__((weak)) void __osEnqueueThread_recomp(uint8_t* rdram, recomp_context* ctx);
-extern "C" __attribute__((weak)) void __osPopThread_recomp(uint8_t* rdram, recomp_context* ctx);
-extern "C" __attribute__((weak)) void __osDispatchThread_recomp(uint8_t* rdram, recomp_context* ctx);
-extern "C" __attribute__((weak)) void __osCleanupThread_recomp(uint8_t* rdram, recomp_context* ctx);
-extern "C" __attribute__((weak)) void osWritebackDCache_recomp(uint8_t* rdram, recomp_context* ctx);
-extern "C" __attribute__((weak)) void __osSetSR_recomp(uint8_t* rdram, recomp_context* ctx);
-extern "C" __attribute__((weak)) void __osGetSR_recomp(uint8_t* rdram, recomp_context* ctx);
-extern "C" __attribute__((weak)) void __osDisableInt_recomp(uint8_t* rdram, recomp_context* ctx);
-extern "C" __attribute__((weak)) void __osRestoreInt_recomp(uint8_t* rdram, recomp_context* ctx);
-extern "C" __attribute__((weak)) void __osProbeTLB_recomp(uint8_t* rdram, recomp_context* ctx);
-extern "C" __attribute__((weak)) void __osSetCompare_recomp(uint8_t* rdram, recomp_context* ctx);
+extern "C" void osDpSetNextBuffer_recomp(uint8_t* rdram, recomp_context* ctx);
+extern "C" void osViBlack_recomp(uint8_t* rdram, recomp_context* ctx);
+extern "C" void osContGetReadData_recomp(uint8_t* rdram, recomp_context* ctx);
+extern "C" void osContGetQuery_recomp(uint8_t* rdram, recomp_context* ctx);
+extern "C" void osStartThread_recomp(uint8_t* rdram, recomp_context* ctx);
+extern "C" void __ull_rem_recomp(uint8_t* rdram, recomp_context* ctx);
+extern "C" void __osPiRelAccess_recomp(uint8_t* rdram, recomp_context* ctx);
+extern "C" void osViGetCurrentFramebuffer_recomp(uint8_t* rdram, recomp_context* ctx);
+extern "C" void osDestroyThread_recomp(uint8_t* rdram, recomp_context* ctx);
+extern "C" void osCreateMesgQueue_recomp(uint8_t* rdram, recomp_context* ctx);
+extern "C" void osEepromLongRead_recomp(uint8_t* rdram, recomp_context* ctx);
+extern "C" void osAiGetLength_recomp(uint8_t* rdram, recomp_context* ctx);
+extern "C" void osGetCount_recomp(uint8_t* rdram, recomp_context* ctx);
+extern "C" void osCreatePiManager_recomp(uint8_t* rdram, recomp_context* ctx);
+extern "C" void osEepromLongWrite_recomp(uint8_t* rdram, recomp_context* ctx);
+extern "C" void osCreateThread_recomp(uint8_t* rdram, recomp_context* ctx);
+extern "C" void osVirtualToPhysical_recomp(uint8_t* rdram, recomp_context* ctx);
+extern "C" void osMotorInit_recomp(uint8_t* rdram, recomp_context* ctx);
+extern "C" void osRecvMesg_recomp(uint8_t* rdram, recomp_context* ctx);
+extern "C" void osSendMesg_recomp(uint8_t* rdram, recomp_context* ctx);
+extern "C" void osSetEventMesg_recomp(uint8_t* rdram, recomp_context* ctx);
+extern "C" void osPiGetStatus_recomp(uint8_t* rdram, recomp_context* ctx);
+extern "C" void osPiRawStartDma_recomp(uint8_t* rdram, recomp_context* ctx);
+extern "C" void osViSetMode_recomp(uint8_t* rdram, recomp_context* ctx);
+extern "C" void __ull_to_f_recomp(uint8_t* rdram, recomp_context* ctx);
+extern "C" void __ull_to_d_recomp(uint8_t* rdram, recomp_context* ctx);
+extern "C" void osContStartQuery_recomp(uint8_t* rdram, recomp_context* ctx);
+extern "C" void osViSetXScale_recomp(uint8_t* rdram, recomp_context* ctx);
+extern "C" void osSetThreadPri_recomp(uint8_t* rdram, recomp_context* ctx);
+extern "C" void osPiStartDma_recomp(uint8_t* rdram, recomp_context* ctx);
+extern "C" void osSpTaskYield_recomp(uint8_t* rdram, recomp_context* ctx);
+extern "C" void osSpTaskYielded_recomp(uint8_t* rdram, recomp_context* ctx);
+extern "C" void osInvalICache_recomp(uint8_t* rdram, recomp_context* ctx);
+extern "C" void osSpTaskLoad_recomp(uint8_t* rdram, recomp_context* ctx);
+extern "C" void osMotorStart_recomp(uint8_t* rdram, recomp_context* ctx);
+extern "C" void osJamMesg_recomp(uint8_t* rdram, recomp_context* ctx);
+extern "C" void osSpTaskStartGo_recomp(uint8_t* rdram, recomp_context* ctx);
+extern "C" void osWritebackDCacheAll_recomp(uint8_t* rdram, recomp_context* ctx);
+extern "C" void osSetTimer_recomp(uint8_t* rdram, recomp_context* ctx);
+extern "C" void osAiSetFrequency_recomp(uint8_t* rdram, recomp_context* ctx);
+extern "C" void osContInit_recomp(uint8_t* rdram, recomp_context* ctx);
+extern "C" void osViSetSpecialFeatures_recomp(uint8_t* rdram, recomp_context* ctx);
+extern "C" void osViSwapBuffer_recomp(uint8_t* rdram, recomp_context* ctx);
+extern "C" void osEPiRawStartDma_recomp(uint8_t* rdram, recomp_context* ctx);
+extern "C" void osPfsChecker_recomp(uint8_t* rdram, recomp_context* ctx);
+extern "C" void osViSetYScale_recomp(uint8_t* rdram, recomp_context* ctx);
+extern "C" void osAiSetNextBuffer_recomp(uint8_t* rdram, recomp_context* ctx);
+extern "C" void osGetThreadPri_recomp(uint8_t* rdram, recomp_context* ctx);
+extern "C" void osStopThread_recomp(uint8_t* rdram, recomp_context* ctx);
+extern "C" void __ull_div_recomp(uint8_t* rdram, recomp_context* ctx);
+extern "C" void osViRepeatLine_recomp(uint8_t* rdram, recomp_context* ctx);
+extern "C" void osInitialize_recomp(uint8_t* rdram, recomp_context* ctx);
+extern "C" void osEepromWrite_recomp(uint8_t* rdram, recomp_context* ctx);
+extern "C" void osViSetEvent_recomp(uint8_t* rdram, recomp_context* ctx);
+extern "C" void __osSpSetPc_recomp(uint8_t* rdram, recomp_context* ctx);
+extern "C" void osEepromRead_recomp(uint8_t* rdram, recomp_context* ctx);
+extern "C" void __osPiGetAccess_recomp(uint8_t* rdram, recomp_context* ctx);
+extern "C" void __ll_mul_recomp(uint8_t* rdram, recomp_context* ctx);
+extern "C" void __ll_div_recomp(uint8_t* rdram, recomp_context* ctx);
+extern "C" void osGetTime_recomp(uint8_t* rdram, recomp_context* ctx);
+extern "C" void osDpSetStatus_recomp(uint8_t* rdram, recomp_context* ctx);
+extern "C" void osCreateViManager_recomp(uint8_t* rdram, recomp_context* ctx);
+extern "C" void osMotorStop_recomp(uint8_t* rdram, recomp_context* ctx);
+extern "C" void osContStartReadData_recomp(uint8_t* rdram, recomp_context* ctx);
+extern "C" void osYieldThread_recomp(uint8_t* rdram, recomp_context* ctx);
+extern "C" void osViGetNextFramebuffer_recomp(uint8_t* rdram, recomp_context* ctx);
+extern "C" void osEepromProbe_recomp(uint8_t* rdram, recomp_context* ctx);
+extern "C" void osInvalDCache_recomp(uint8_t* rdram, recomp_context* ctx);
+extern "C" void __osSetFpcCsr_recomp(uint8_t* rdram, recomp_context* ctx);
+extern "C" void osSetIntMask_recomp(uint8_t* rdram, recomp_context* ctx);
+extern "C" void osWritebackDCache_recomp(uint8_t* rdram, recomp_context* ctx);
+extern "C" void __osDisableInt_recomp(uint8_t* rdram, recomp_context* ctx);
+extern "C" void __osRestoreInt_recomp(uint8_t* rdram, recomp_context* ctx);
 
 static const LiveOverride live_shim_list[] = {
-    { 0x80001630u, osMapTLBRdb_recomp },
     { 0x8000B528u, osPfsChecker_recomp },
     { 0x8000C780u, osMotorStop_recomp },
     { 0x8000C8ACu, osMotorStart_recomp },
-    { 0x8000C9DCu, _MakeMotorData_recomp },
     { 0x8000CB38u, osMotorInit_recomp },
-    { 0x8000CCA0u, rmonMain_recomp },
-    { 0x8000CCE0u, rmonPrintf_recomp },
     { 0x8000CD90u, osPiRawStartDma_recomp },
     { 0x8000CE70u, osPiGetStatus_recomp },
     { 0x8000CE80u, osInitialize_recomp },
     { 0x8000D120u, osWritebackDCacheAll_recomp },
     { 0x8000D150u, osInvalICache_recomp },
-    { 0x8000D1D0u, osUnmapTLB_recomp },
     { 0x8000D220u, __osSetFpcCsr_recomp },
     { 0x8000D230u, osCreateThread_recomp },
     { 0x8000D380u, osStartThread_recomp },
@@ -234,7 +148,6 @@ static const LiveOverride live_shim_list[] = {
     { 0x8000E060u, osViRepeatLine_recomp },
     { 0x8000E0D0u, osViBlack_recomp },
     { 0x8000E140u, osSpTaskYielded_recomp },
-    { 0x8000E1C0u, osDpGetCounters_recomp },
     { 0x8000E210u, osViGetCurrentFramebuffer_recomp },
     { 0x8000E250u, osViGetNextFramebuffer_recomp },
     { 0x8000E290u, osViSwapBuffer_recomp },
@@ -243,118 +156,43 @@ static const LiveOverride live_shim_list[] = {
     { 0x8000E56Cu, osSpTaskStartGo_recomp },
     { 0x8000E5B0u, osDpSetNextBuffer_recomp },
     { 0x8000E660u, osSpTaskYield_recomp },
-    { 0x8000E680u, __osGetTLBHi_recomp },
     { 0x8000E6B0u, osVirtualToPhysical_recomp },
     { 0x8000E730u, osAiSetFrequency_recomp },
     { 0x8000E9B0u, osGetTime_recomp },
-    { 0x8000EA40u, __ull_rshift_recomp },
     { 0x8000EA6Cu, __ull_rem_recomp },
     { 0x8000EAA8u, __ull_div_recomp },
-    { 0x8000EAE4u, __ll_lshift_recomp },
-    { 0x8000EB10u, __ll_rem_recomp },
     { 0x8000EB4Cu, __ll_div_recomp },
     { 0x8000EBA8u, __ll_mul_recomp },
-    { 0x8000EBD8u, __ull_divremi_recomp },
-    { 0x8000EC38u, __ll_mod_recomp },
-    { 0x8000ECD4u, __ll_rshift_recomp },
     { 0x8000ED00u, osAiSetNextBuffer_recomp },
     { 0x8000EDB0u, osAiGetLength_recomp },
     { 0x8000F4A0u, osPiStartDma_recomp },
     { 0x8000F5B0u, osViSetSpecialFeatures_recomp },
-    { 0x8000FF90u, __osExceptionPreamble_recomp },
-    { 0x8000FFA0u, __osException_recomp },
-    { 0x800104C4u, send_mesg_recomp },
-    { 0x80010578u, handle_CpU_recomp },
-    { 0x800105ACu, __osEnqueueAndYield_recomp },
-    { 0x800106ACu, __osEnqueueThread_recomp },
-    { 0x800106F4u, __osPopThread_recomp },
-    { 0x80010704u, __osDispatchThread_recomp },
-    { 0x80010880u, __osCleanupThread_recomp },
-    { 0x80010890u, __osDequeueThread_recomp },
     { 0x800108D0u, osYieldThread_recomp },
     { 0x80010920u, osInvalDCache_recomp },
     { 0x800109D0u, osWritebackDCache_recomp },
     { 0x80010A50u, osSetTimer_recomp },
-    { 0x80013610u, osPiReadIo_recomp },
     { 0x800143B0u, osCreatePiManager_recomp },
-    { 0x80014540u, osPfsInit_recomp },
-    { 0x800145F4u, __osPfsGetStatus_recomp },
     { 0x80014700u, osContInit_recomp },
-    { 0x800148F8u, __osContGetInitData_recomp },
-    { 0x800149C8u, __osPackRequestData_recomp },
     { 0x80014AC0u, osContStartQuery_recomp },
     { 0x80014B44u, osContGetQuery_recomp },
     { 0x80014B70u, osContStartReadData_recomp },
     { 0x80014C34u, osContGetReadData_recomp },
     { 0x80014DD0u, osEepromProbe_recomp },
     { 0x80014E40u, osEepromRead_recomp },
-    { 0x80015030u, __osPackEepReadData_recomp },
     { 0x80015140u, osEepromWrite_recomp },
-    { 0x800153FCu, __osEepStatus_recomp },
     { 0x80015620u, osEepromLongRead_recomp },
     { 0x80015760u, osEepromLongWrite_recomp },
-    { 0x800158A0u, osPfsIsPlug_recomp },
-    { 0x80015A40u, __osPfsRequestData_recomp },
-    { 0x80015B3Cu, __osPfsGetInitData_recomp },
-    { 0x80015C10u, __osSiCreateAccessQueue_recomp },
-    { 0x80015C60u, __osSiGetAccess_recomp },
-    { 0x80015CA4u, __osSiRelAccess_recomp },
-    { 0x80015CD0u, __osSiRawStartDma_recomp },
-    { 0x80015D80u, __osContAddressCrc_recomp },
-    { 0x80015E30u, __osContDataCrc_recomp },
-    { 0x80015F00u, __osContRamWrite_recomp },
-    { 0x800162B0u, __osContRamRead_recomp },
-    { 0x80017710u, __d_to_ll_recomp },
-    { 0x8001772Cu, __f_to_ll_recomp },
-    { 0x80017748u, __d_to_ull_recomp },
-    { 0x800177E8u, __f_to_ull_recomp },
-    { 0x80017884u, __ll_to_d_recomp },
-    { 0x8001789Cu, __ll_to_f_recomp },
     { 0x800178B4u, __ull_to_d_recomp },
     { 0x800178E8u, __ull_to_f_recomp },
-    { 0x80017920u, __osSetSR_recomp },
-    { 0x80017930u, __osGetSR_recomp },
-    { 0x80017940u, __osSiRawReadIo_recomp },
-    { 0x80017990u, __osSiRawWriteIo_recomp },
-    { 0x800179E0u, osPiRawReadIo_recomp },
-    { 0x80017B30u, __osLeoInterrupt_recomp },
     { 0x800183F0u, __osDisableInt_recomp },
     { 0x80018410u, __osRestoreInt_recomp },
-    { 0x80018430u, __osTimerServicesInit_recomp },
-    { 0x800184BCu, __osTimerInterrupt_recomp },
-    { 0x80018634u, __osSetTimerIntr_recomp },
-    { 0x800186A8u, __osInsertTimer_recomp },
     { 0x80018830u, osGetThreadPri_recomp },
-    { 0x80018850u, __osViInit_recomp },
-    { 0x80018960u, __osViGetCurrentContext_recomp },
-    { 0x80018970u, __osViSwapContext_recomp },
-    { 0x80018CD0u, __osSpGetStatus_recomp },
-    { 0x80018CE0u, __osSpSetStatus_recomp },
     { 0x80018CF0u, __osSpSetPc_recomp },
-    { 0x80018D30u, __osSpRawStartDma_recomp },
-    { 0x80018DC0u, __osSpDeviceBusy_recomp },
-    { 0x80018DF0u, __osDpDeviceBusy_recomp },
-    { 0x80018E20u, __osProbeTLB_recomp },
-    { 0x80018EF0u, __osAiDeviceBusy_recomp },
     { 0x8001B4B0u, osJamMesg_recomp },
-    { 0x8001B600u, osPiGetCmdQueue_recomp },
     { 0x8001B960u, osDestroyThread_recomp },
-    { 0x8001D510u, __osPiCreateAccessQueue_recomp },
     { 0x8001D560u, __osPiGetAccess_recomp },
     { 0x8001D5A4u, __osPiRelAccess_recomp },
     { 0x8001E330u, osEPiRawStartDma_recomp },
-    { 0x8001E410u, __osDevMgrMain_recomp },
-    { 0x8001E884u, __osRepairPackId_recomp },
-    { 0x8001EC9Cu, __osCheckPackId_recomp },
-    { 0x8001EE34u, __osGetId_recomp },
-    { 0x8001F090u, __osCheckId_recomp },
-    { 0x8001F18Cu, __osPfsRWInode_recomp },
-    { 0x8001F4ACu, __osPfsSelectBank_recomp },
-    { 0x8001F520u, __osSiDeviceBusy_recomp },
-    { 0x8001F5F0u, osLeoDiskInit_recomp },
-    { 0x8001F6E0u, __osSetCompare_recomp },
-    { 0x80020AE0u, __osResetGlobalIntMask_recomp },
-    { 0x80020B40u, osEPiRawWriteIo_recomp },
 };
 #define GE_COSF_VRAM 0x80457EA0u
 #define GE_SINF_VRAM 0x80457EACu
