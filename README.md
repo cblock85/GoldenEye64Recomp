@@ -1,107 +1,177 @@
 # GoldenEye64Recomp
 
-A native macOS (and Linux) port of **GoldenEye 007 (N64)**, built from the [100%-complete
-decompilation](https://gitlab.com/kholdfuzion/goldeneye_src) via static recompilation
-([N64Recomp](https://github.com/N64Recomp/N64Recomp)) with the
-[RT64](https://github.com/rt64/rt64) renderer running on Metal. Based on the
-[GoldenRecomp](https://github.com/kholdfuzion/goldenrecomp) project, previously
-Windows-only. This is believed to be the first native macOS build of the game —
-no emulator involved: the game's MIPS code is translated to C and compiled to
-native Apple Silicon (or Intel) machine code.
+A native **macOS and Linux** port of **GoldenEye 007 (N64)**, built from the
+[100%-complete decompilation](https://gitlab.com/kholdfuzion/goldeneye_src) via static
+recompilation ([N64Recomp](https://github.com/N64Recomp/N64Recomp)) with the
+[RT64](https://github.com/rt64/rt64) renderer — Metal on macOS, Vulkan on Linux.
+Based on the [GoldenRecomp](https://github.com/kholdfuzion/goldenrecomp) project,
+which was previously Windows-only.
+
+**This is not an emulator.** The game's original MIPS code is translated into C (or
+into machine code at launch, see below) and runs natively on your CPU — Apple
+Silicon, Intel, or x86-64 Linux. This is believed to be the first native macOS
+build of GoldenEye 007.
 
 ## No Nintendo assets
 
-This repository contains **no game code, no game assets, and no ROM data**.
-You must own a retail GoldenEye 007 NTSC-U cartridge dump. At build time, the
-8,404 game functions and the audio microcode are generated **on your machine,
-from your ROM**, using the committed symbol maps (`dump.toml` — names and
-addresses only). At runtime the app converts your retail dump into the modified
-"TLBFREE" ROM layout it needs, using a delta patch — you can also just pick your
-retail `.z64` in the ROM picker and the app converts it for you.
+This repository contains **no game code, no game assets, and no ROM data.** You
+must own a retail GoldenEye 007 NTSC-U cartridge dump.
+
+What *is* committed is factual symbol data — function names, addresses and sizes
+(`dump.toml`, `data_dump.toml`) — plus original port code and a delta patch that
+rearranges *your own* dump into the modified "TLBFREE" ROM layout the
+recompilation needs. Everything game-derived is produced on your machine, from
+your ROM.
 
 ## Requirements
 
-- macOS 13+ (Apple Silicon or Intel)
-- Full Xcode (for the Metal shader compiler): `sudo xcode-select -s /Applications/Xcode.app`
-- [Homebrew](https://brew.sh)
+**Both platforms**
+
 - Your own GoldenEye 007 **NTSC-U** ROM dump, big-endian `.z64`,
   sha1 `abe01e4aeb033b6c0836819f549c791b26cfde83`
+  (byteswapped `.v64` / `.n64` dumps are accepted and converted too)
+
+**macOS**
+
+- macOS 13+ (Apple Silicon or Intel)
+- Full Xcode, for the Metal shader compiler:
+  `sudo xcode-select -s /Applications/Xcode.app`
+  (Command Line Tools alone are not enough)
+- [Homebrew](https://brew.sh) — the build script installs the rest
+
+**Linux**
+
+- A Vulkan-capable GPU and drivers
+- `cmake ninja-build clang lld python3 libsdl2-dev libfreetype-dev libgtk-3-dev xdelta3`
+  (Debian/Ubuntu names; the build script checks and tells you what's missing)
 
 ## Build
 
-Two build modes:
+There are two build modes. Both need your ROM; they differ in *when* the game
+code is generated.
 
-**Standard build** — the game code is generated from your ROM at build time and
-compiled into the executable (fastest at runtime; the binary is personal to you):
+### Standard build
+
+The game code is generated from your ROM at build time and compiled into the
+executable. Fastest to launch; the resulting binary is personal to you and
+should not be redistributed.
 
 ```bash
 cp /path/to/your/goldeneye.z64 baserom.u.z64
-./build_macos.sh          # installs deps, generates game code from your ROM, builds
-./make_macos_app.sh       # optional: wraps it into a double-clickable .app bundle
+
+./build_macos.sh          # macOS
+./build_linux.sh          # Linux
 ```
 
-**Clean build** — the executable ships with *zero game-derived code*. At first
-launch it recompiles all 2,984 game functions from your ROM in memory (~2 seconds)
+### Clean build
+
+The executable ships with **zero game-derived CPU code**. At first launch it
+recompiles all ~3,000 game functions from your ROM in memory — about two seconds —
 using N64Recomp's live recompiler. This is the variant suitable for distributing
-binaries (e.g. GitHub releases), since the app contains only original code plus
-symbol facts:
+binaries, since the app itself contains only original code plus symbol facts.
 
 ```bash
-./build_macos.sh --clean
-./make_macos_app.sh build-clean/GoldenRecomp
+./build_macos.sh --clean  # macOS
+./build_linux.sh --clean  # Linux
 ```
 
-**Linux** builds the same way with `./build_linux.sh` (add `--clean` for the
-distributable variant). Dependencies: `cmake ninja-build clang lld python3
-libsdl2-dev libfreetype-dev libgtk-3-dev xdelta3`.
+(The audio microcode is still translated at build time, so a ROM is needed once
+even for a clean build.)
 
-Run `./build/GoldenRecomp` (or open the generated **GoldenEye 007 Recompiled.app**).
-On first launch, pick your ROM — retail NTSC-U dumps are converted automatically
-(byteswapped `.v64`/`.n64` dumps are handled too). Config and the stored ROM live
-in `~/Library/Application Support/GoldenRecomp`.
+### macOS app bundle
+
+Optional, wraps the binary into a double-clickable `.app` with an icon:
+
+```bash
+./make_macos_app.sh                          # standard build
+./make_macos_app.sh build-clean/GoldenRecomp # clean build
+```
+
+## Running
+
+```bash
+./build/GoldenRecomp          # standard build
+./build-clean/GoldenRecomp    # clean build
+```
+
+or open **GoldenEye 007 Recompiled.app** on macOS.
+
+On first launch, pick your ROM in the picker — a plain retail NTSC-U dump works
+directly, and the app converts it for you. Settings and the stored ROM live in
+`~/Library/Application Support/GoldenRecomp` (macOS) or `~/.config/GoldenRecomp`
+(Linux); delete the stored `.z64` there if you ever want the ROM picker back.
 
 ## State
 
-Working: full intro (Nintendo/Rareware logos, gunbarrel), menus, briefings,
-missions, audio, controller support, 60fps+ frame interpolation, widescreen.
-Known upstream WIP: skyboxes render black and water is flat (broken in the
-Windows build too); multiplayer UI incomplete.
+**Working:** the full intro (Nintendo and Rareware logos, gunbarrel), menus,
+file select, briefings, missions, audio, controller support, frame interpolation
+to your display's refresh rate, and widescreen.
 
-Only the NTSC-U (US) version is supported. PAL/JP dumps are rejected — the
-recompiled code is generated against the US symbols; other regions would need
-their own recompilation pass (the decomp supports EU, so this is future work).
+**Known issues**, inherited from upstream GoldenRecomp and present in the Windows
+build too: skyboxes render black and water is flat (the game draws them with
+custom microcode commands RT64 doesn't implement); the multiplayer UI is
+incomplete; some weapons fire too fast because the game runs at native 60Hz.
+
+**Region:** only NTSC-U (US) is supported. Other regions are rejected — the
+symbol data here is generated against the US ROM. The decompilation supports EU,
+so PAL support is possible future work.
 
 ## What was fixed to get here
 
-Beyond the macOS platform glue, this port surfaced and fixes several bugs that
-affect all platforms (drafted upstream reports are in `docs/upstream-issues/`):
+Beyond the macOS and Linux platform glue, this port surfaced and fixed a number
+of bugs affecting all platforms. Drafted upstream reports live in
+`docs/upstream-issues/`.
 
-1. **N64ModernRuntime**: SP/DP task-completion messages were silently dropped
-   when the game's scheduler queue was full, wedging GoldenEye's renderer
-   (fixed with a FIFO pending queue in `ultramodern/src/mesgqueue.cpp`).
-2. **RT64**: specialized (spec-constant) raster shaders produce broken output on
-   the SPIRV/Metal shader paths — geometry using them vanished. Worked around by
-   forcing the ubershader path (`rt64_workload_queue.h`, `ubershadersOnly`).
-3. **RT64**: frame interpolation interpolated *rotation* unconditionally
-   (`FIXME` in tree), so mismatched transform pairs swept garbage across the
-   screen for a frame; added a teleport guard mirroring the translation
-   heuristic (`rt64_rigid_body.cpp`).
-4. **N64Recomp**: the game's `cosf` is a 3-instruction stub that falls through
-   into `sinf`; N64Recomp truncates at the fallthrough, so `cosf` returned
-   garbage — breaking every CPU-built rotation matrix (Nintendo logo, gunbarrel
-   Bond, …). Worked around post-generation in `tools_weaken_patched.py`.
+**N64ModernRuntime**
+
+1. SP/DP task-completion messages were silently dropped when the game's scheduler
+   queue was full, wedging GoldenEye's renderer. Fixed with a FIFO pending queue
+   in `ultramodern/src/mesgqueue.cpp`.
+
+**RT64**
+
+2. Specialized (spec-constant) raster shaders produce broken output on the
+   SPIRV/Metal shader paths, so any geometry using them silently vanished — no
+   character models, no weapon in hand. Worked around by forcing the ubershader
+   path (`ubershadersOnly` in `rt64_workload_queue.h`).
+3. Frame interpolation interpolated *rotation* unconditionally (a `FIXME` in
+   tree), so mismatched transform pairs swept garbage geometry across the screen
+   for a frame every few seconds while moving. Added a teleport guard mirroring
+   the existing translation heuristic (`rt64_rigid_body.cpp`).
+
+**N64Recomp (static)**
+
+4. The game's `cosf` is a 3-instruction stub that *falls through* into `sinf`
+   (`cos(x) = sin(x + pi/2)`). N64Recomp truncates functions at the fallthrough
+   boundary, so `cosf` returned stale garbage — breaking every CPU-built rotation
+   matrix in the game (the Nintendo logo zoomed past the camera; Bond was a white
+   triangle in the gunbarrel). Repaired post-generation in
+   `tools_weaken_patched.py`.
+
+**N64Recomp (live recompiler)** — found while making the clean build work:
+
+5. Odd-indexed single FPR accesses (`mtc1 $f5`, …) hit a `TODO`/`assert` that
+   compiles out in release builds, returning context offset `-1` and silently
+   corrupting memory. Implemented properly via the runtime `f_odd` pointer.
+6. `mtc1` emitted a full-width 64-bit move into a 32-bit float-word slot,
+   clobbering the adjacent half of the FPR pair — corrupting any double built
+   high-half-first, which is what GoldenEye's audio synthesizer does.
+7. Jump-table analysis assumed jump tables live in the same section as the
+   function using them; GoldenEye keeps game-code jump tables in its data
+   segment, which crashed the analyzer.
 
 ## Credits
 
 - The [GoldenEye decompilation](https://gitlab.com/kholdfuzion/goldeneye_src) team — 100% as of 2026-08-17
 - [kholdfuzion](https://github.com/kholdfuzion)'s GoldenRecomp — the Windows recomp this port builds on
 - [Mr-Wiseguy](https://github.com/Mr-Wiseguy) — N64Recomp, N64ModernRuntime, and the recomp technique
-- [rt64](https://github.com/rt64/rt64) — the renderer
-- macOS port, bug fixes, and in-app ROM conversion
+- [RT64](https://github.com/rt64/rt64) — the renderer
+- macOS/Linux port, bug fixes, live-recompilation mode, and in-app ROM conversion
 
 ## License
 
 The port code and build scripts follow the licenses of the projects they extend
-(see `COPYING` and the license files in `lib/`). No Nintendo, Rare, Danjaq, or
-EON material is included; GoldenEye 007 is their property. This project is for
-preservation and interoperability; you must supply your own legally obtained ROM.
+(see `COPYING` and the license files under `lib/`). No Nintendo, Rare, Danjaq, or
+EON material is included; GoldenEye 007 is their property. This project exists for
+preservation and interoperability, and requires you to supply your own legally
+obtained ROM.
