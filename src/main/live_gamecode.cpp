@@ -107,6 +107,17 @@ void cosf_fallthrough_shim(uint8_t* rdram, recomp_context* ctx) {
 // access, TLB, exception handling). Returning zero is what a static build's missing
 // implementation would effectively do if it were reachable; the alternative is
 // aborting the process the first time the game calls one.
+std::unordered_map<uint32_t, std::string> unimplemented_names;
+
+// void osDpGetCounters(u32 *array) - fills in the RDP performance counters
+// (clock, bufbusy, pipebusy, tmem). The runtime has no RDP counters, so report
+// zeros; the generic stub below would leave the game reading stale memory.
+void osDpGetCounters_stub(uint8_t* rdram, recomp_context* ctx) {
+    for (int i = 0; i < 4; i++) {
+        MEM_W(i * 4, ctx->r4) = 0;
+    }
+}
+
 void unimplemented_libultra_stub(uint8_t* rdram, recomp_context* ctx) {
     (void)rdram;
     ctx->r2 = 0;
@@ -119,6 +130,15 @@ recomp_func_t* live_resolver(int32_t vram_signed) {
 
     auto ov = override_map.find(vram);
     if (ov != override_map.end()) {
+        if (ov->second == unimplemented_libultra_stub) {
+            static std::unordered_set<uint32_t> reported;
+            if (reported.insert(vram).second) {
+                auto name_it = unimplemented_names.find(vram);
+                fprintf(stderr, "[stub] game called unimplemented libultra routine: %s (0x%08X)\n",
+                    name_it != unimplemented_names.end() ? name_it->second.c_str() : "?", vram);
+                fflush(stderr);
+            }
+        }
         return ov->second;
     }
 
@@ -194,6 +214,7 @@ bool build_live_gamecode() {
             // skipped here just as a static build skips them - but their addresses are
             // registered as no-op stubs below, because the game does call a few of them
             // (osDpGetCounters, for one) and an unresolved address kills the process.
+            unimplemented_names[func.vram] = func.name;
             rename_function(i, func.name + "_recomp");
             func.ignored = true;
             unimplemented_vrams.push_back(func.vram);
@@ -344,7 +365,11 @@ bool build_live_gamecode() {
     }
     for (uint32_t vram : unimplemented_vrams) {
         if (override_map.find(vram) == override_map.end()) {
-            override_map[vram] = unimplemented_libultra_stub;
+            auto name_it = unimplemented_names.find(vram);
+            const bool is_dp_counters = name_it != unimplemented_names.end() &&
+                                        name_it->second == "osDpGetCounters";
+            override_map[vram] = is_dp_counters ? osDpGetCounters_stub
+                                                : unimplemented_libultra_stub;
         }
     }
     printf("live_gamecode: %zu unimplemented libultra addresses stubbed\n", unimplemented_vrams.size());
