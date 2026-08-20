@@ -23,11 +23,14 @@
 #include <mutex>
 #include <memory>
 #include <unordered_map>
+#include <unordered_set>
+#include <string>
 #include <vector>
 #include <filesystem>
 
 #ifndef _WIN32
 #include <dlfcn.h>
+#include <pthread.h>
 #endif
 
 #include "recompiler/context.h"
@@ -100,6 +103,15 @@ void cosf_fallthrough_shim(uint8_t* rdram, recomp_context* ctx) {
     }
 }
 
+// Stands in for libultra routines the runtime does not implement (hardware register
+// access, TLB, exception handling). Returning zero is what a static build's missing
+// implementation would effectively do if it were reachable; the alternative is
+// aborting the process the first time the game calls one.
+void unimplemented_libultra_stub(uint8_t* rdram, recomp_context* ctx) {
+    (void)rdram;
+    ctx->r2 = 0;
+}
+
 // Runtime function resolver used for ALL calls inside the live-recompiled code.
 recomp_func_t* live_resolver(int32_t vram_signed) {
     uint32_t vram = static_cast<uint32_t>(vram_signed);
@@ -146,27 +158,51 @@ bool build_live_gamecode() {
         return false;
     }
 
-    // Apply the same built-in renames/flags the N64Recomp CLI applies in symbols mode.
+    // Apply the same built-in renames/flags the N64Recomp CLI applies in symbols mode,
+    // but ONLY skip generating a libultra function when the runtime actually provides
+    // a replacement for it. N64Recomp's ignored/reimplemented lists are broader than
+    // the set librecomp implements; skipping the remainder leaves them unresolvable at
+    // runtime ("Failed to find function at 0x...") the moment the game calls one. They
+    // are ordinary code in the ROM, so just recompile them.
+    std::unordered_set<uint32_t> shim_vrams;
+    for (const LiveOverride& ov : live_shim_list) {
+        if (ov.func != nullptr) {
+            shim_vrams.insert(ov.vram);
+        }
+    }
+
     auto rename_function = [&context](size_t func_index, const std::string& new_name) {
         N64Recomp::Function& func = context.functions[func_index];
         context.functions_by_name.erase(func.name);
         func.name = new_name;
         context.functions_by_name[func.name] = func_index;
     };
+    // Discovered empirically; see tools/find_live_unbuildable.sh in the repo history.
+    std::vector<uint32_t> unimplemented_vrams;
     for (size_t i = 0; i < context.functions.size(); i++) {
         N64Recomp::Function& func = context.functions[i];
-        if (N64Recomp::reimplemented_funcs.contains(func.name)) {
+        const bool is_replaced = N64Recomp::reimplemented_funcs.contains(func.name) ||
+                                 N64Recomp::ignored_funcs.contains(func.name);
+        if (is_replaced && shim_vrams.count(func.vram) != 0) {
+            const bool reimplemented = N64Recomp::reimplemented_funcs.contains(func.name);
             rename_function(i, func.name + "_recomp");
-            func.reimplemented = true;
+            func.reimplemented = reimplemented;
             func.ignored = true;
-        } else if (N64Recomp::ignored_funcs.contains(func.name)) {
+        } else if (is_replaced) {
+            // No shim exists for this one. These are hardware/OS routines the runtime
+            // deliberately does not implement (they poke N64 registers), so they are
+            // skipped here just as a static build skips them - but their addresses are
+            // registered as no-op stubs below, because the game does call a few of them
+            // (osDpGetCounters, for one) and an unresolved address kills the process.
             rename_function(i, func.name + "_recomp");
             func.ignored = true;
+            unimplemented_vrams.push_back(func.vram);
         } else if (N64Recomp::renamed_funcs.contains(func.name)) {
             rename_function(i, func.name + "_recomp");
             func.ignored = false;
         }
     }
+
 
     // Config-level stubs and ignores (kept in sync with us.toml).
     for (const char* name : config_stubbed) {
@@ -306,6 +342,13 @@ bool build_live_gamecode() {
     for (const LiveOverride& ov : live_override_list) {
         override_map[ov.vram] = ov.func;
     }
+    for (uint32_t vram : unimplemented_vrams) {
+        if (override_map.find(vram) == override_map.end()) {
+            override_map[vram] = unimplemented_libultra_stub;
+        }
+    }
+    printf("live_gamecode: %zu unimplemented libultra addresses stubbed\n", unimplemented_vrams.size());
+
     override_map[GE_COSF_VRAM] = cosf_fallthrough_shim;
 
     std::error_code ec;
@@ -317,15 +360,45 @@ bool build_live_gamecode() {
 
 } // anonymous namespace
 
+// Run the (stack-hungry) recompiler on a thread with a known-large stack.
+// The first live_call can arrive on a game thread, and macOS gives secondary
+// threads only 512 KB by default (Linux gives 8 MB) — nowhere near enough for
+// building a context of thousands of functions, so it would fault mid-build.
+static void* build_live_gamecode_thread(void*) {
+    load_ok = build_live_gamecode();
+    return nullptr;
+}
+
+static void build_live_gamecode_big_stack() {
+#ifndef _WIN32
+    size_t stack_bytes = 32u * 1024u * 1024u;
+    if (const char* kb = getenv("GE_LIVE_STACK_KB")) {
+        stack_bytes = strtoul(kb, nullptr, 10) * 1024u;
+    }
+    pthread_attr_t attr;
+    if (pthread_attr_init(&attr) == 0) {
+        pthread_attr_setstacksize(&attr, stack_bytes);
+        pthread_t thread;
+        if (pthread_create(&thread, &attr, build_live_gamecode_thread, nullptr) == 0) {
+            pthread_join(thread, nullptr);
+            pthread_attr_destroy(&attr);
+            return;
+        }
+        pthread_attr_destroy(&attr);
+    }
+#endif
+    load_ok = build_live_gamecode();
+}
+
 // Debug/selftest: build the live code immediately (main thread) and report success.
 extern "C" bool live_gamecode_selftest() {
-    std::call_once(load_once, []() { load_ok = build_live_gamecode(); });
+    std::call_once(load_once, []() { build_live_gamecode_big_stack(); });
     return load_ok;
 }
 
 // Called by the weak forwarders for every game function invocation from app code.
 extern "C" void live_call(unsigned int vram, uint8_t* rdram, recomp_context* ctx) {
-    std::call_once(load_once, []() { load_ok = build_live_gamecode(); });
+    std::call_once(load_once, []() { build_live_gamecode_big_stack(); });
 
     if (!load_ok) {
         fprintf(stderr, "live_gamecode: game code unavailable (vram 0x%08X)\n", vram);
