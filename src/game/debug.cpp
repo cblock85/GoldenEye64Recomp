@@ -1,4 +1,6 @@
 #include <atomic>
+#include <cstdlib>
+#include <string>
 #include "zelda_debug.h"
 #include "librecomp/helpers.hpp"
 // #include "../patches/input.h"
@@ -24,4 +26,14 @@ void zelda64::set_time(uint8_t day, uint8_t hour, uint8_t minute) {
 extern "C" void recomp_get_pending_set_time(uint8_t* rdram, recomp_context* ctx) {
     // Return the current set time value and reset it.
     _return(ctx, pending_set_time.exchange(0xFFFF));
+}
+
+// The game's developer debug menu (C-Up + C-Down, i.e. both triggers on a controller) is off unless
+// GE_DEBUG_MENU=1 is set: it's easy to open by accident and renders badly.
+extern "C" void recomp_get_debug_menu_enabled(uint8_t* rdram, recomp_context* ctx) {
+    static const bool enabled = [] {
+        const char* value = getenv("GE_DEBUG_MENU");
+        return value != nullptr && std::string{value} == "1";
+    }();
+    _return(ctx, (int32_t) enabled);
 }
