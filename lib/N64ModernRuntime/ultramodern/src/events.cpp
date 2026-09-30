@@ -199,13 +199,19 @@ static void send_complete_retry(PTR(OSMesgQueue) mq, OSMesg msg) {
     }
 }
 
+bool ultramodern::debug_logging = false;
+
 void sp_complete() {
-    fprintf(stderr, "[complete] SP -> mq %08X msg %08X\n", (uint32_t)events_context.sp.mq, (uint32_t)events_context.sp.msg);
+    if (ultramodern::debug_logging) {
+        fprintf(stderr, "[complete] SP -> mq %08X msg %08X\n", (uint32_t)events_context.sp.mq, (uint32_t)events_context.sp.msg);
+    }
     send_complete_retry(events_context.sp.mq, events_context.sp.msg);
 }
 
 void dp_complete() {
-    fprintf(stderr, "[complete] DP -> mq %08X msg %08X\n", (uint32_t)events_context.dp.mq, (uint32_t)events_context.dp.msg);
+    if (ultramodern::debug_logging) {
+        fprintf(stderr, "[complete] DP -> mq %08X msg %08X\n", (uint32_t)events_context.dp.mq, (uint32_t)events_context.dp.msg);
+    }
     send_complete_retry(events_context.dp.mq, events_context.dp.msg);
 }
 

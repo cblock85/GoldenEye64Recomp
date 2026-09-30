@@ -17,4 +17,5 @@ DECLARE_FUNC(s32, osPiStartDma_recomp, OSIoMesg* mb, s32 priority, s32 direction
              size_t nbytes, OSMesgQueue* mq);
 DECLARE_FUNC(s32, osPfsInit_recomp, OSMesgQueue*, OSPfs*, int);
 DECLARE_FUNC(s32, osMotorInit_recomp, OSMesgQueue*, OSPfs*, int);
+DECLARE_FUNC(s32, recomp_get_debug_log_enabled);
 #endif

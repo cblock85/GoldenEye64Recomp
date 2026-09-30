@@ -151,7 +151,12 @@ void set_callbacks(
 
 #define MIN(a, b) ((a) < (b) ? (a) : (b))
 
-//#define debug_printf(...)
-#define debug_printf(...) printf(__VA_ARGS__);
+namespace ultramodern {
+    // Verbose runtime tracing (thread scheduling, message queues, PI DMA). Off by default: it prints
+    // several lines per frame, which costs CPU (and battery on handhelds). Enabled with --debug-log.
+    extern bool debug_logging;
+}
+
+#define debug_printf(...) do { if (ultramodern::debug_logging) { printf(__VA_ARGS__); } } while (0)
 
 #endif

@@ -549,6 +549,12 @@ extern "C" bool live_gamecode_selftest();
 #endif
 
 int main(int argc, char** argv) {
+    for (int i = 1; i < argc; i++) {
+        if (std::string{argv[i]} == "--debug-log") {
+            ultramodern::debug_logging = true;
+        }
+    }
+
 #ifdef GE_LIVE_GAMECODE
     if (getenv("GE_LIVE_SELFTEST")) {
         bool ok = live_gamecode_selftest();
