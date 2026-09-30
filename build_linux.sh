@@ -42,6 +42,15 @@ if [ "$BUILD_DIR" = "build" ]; then
         ./N64Recomp us.toml
         python3 tools_weaken_patched.py
     fi
+    # The standard build also compiles in the translated audio microcode (aspMain).
+    if [ ! -f rsp/aspMain.cpp ]; then
+        if [ ! -f ./RSPRecomp ]; then
+            cmake -S n64recomp-src -B n64recomp-src/build -G Ninja -DCMAKE_BUILD_TYPE=Release >/dev/null
+            ninja -C n64recomp-src/build RSPRecomp
+            cp n64recomp-src/build/RSPRecomp ./RSPRecomp
+        fi
+        ./RSPRecomp aspMain.us.toml
+    fi
 else
     # Clean build: the CPU game code is generated at app launch from the user's
     # ROM, but the audio microcode (aspMain) is still translated at build time.
@@ -84,7 +93,15 @@ if [ ! -f lib/ge/include/PR/ultratypes.h ]; then
 fi
 
 echo "== [3/4] Configuring"
-cmake -S . -B $BUILD_DIR -G Ninja -DCMAKE_BUILD_TYPE=Release $MODE_FLAG
+# CMAKE_POLICY_VERSION_MINIMUM: CMake 4 refuses old submodules (lib/lunasvg asks for < 3.5)
+# clang explicitly: CMake otherwise picks GCC, and GCC 14+ rejects the recompiled patches.c
+# -Wno-error=...: rt64 builds with -Werror; clang 20/21 add these warnings, all hit only in its bundled
+#   imgui/json. -Wno-unknown-warning-option keeps older clang from choking on the newer names.
+# -include cstdint: rt64 headers use uint32_t etc. without including <cstdint>; newer libstdc++
+#   no longer pulls it in transitively
+cmake -S . -B $BUILD_DIR -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_POLICY_VERSION_MINIMUM=3.5 \
+    -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ \
+    "-DCMAKE_CXX_FLAGS=${CXXFLAGS:-} -Wno-unknown-warning-option -Wno-error=nontrivial-memcall -Wno-error=deprecated-literal-operator -Wno-error=uninitialized-const-pointer -include cstdint" $MODE_FLAG
 
 echo "== [4/4] Building"
 ninja -C $BUILD_DIR GoldenRecomp

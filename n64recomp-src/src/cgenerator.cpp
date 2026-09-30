@@ -417,6 +417,12 @@ void N64Recomp::CGenerator::emit_function_call_by_register(int reg) const {
 void N64Recomp::CGenerator::emit_function_call_reference_symbol(const Context& context, uint16_t section_index, size_t symbol_index, uint32_t target_section_offset) const {
     (void)target_section_offset;
     const N64Recomp::ReferenceSymbol& sym = context.get_reference_symbol(section_index, symbol_index);
+    // Game functions that clash with libc (sprintf, strtol, ...) are emitted as <name>_recomp in the
+    // game code; calls from patches have to use the same name or they bind to the libc prototype.
+    if (N64Recomp::renamed_funcs.contains(sym.name)) {
+        fmt::print(output_file, "{}_recomp(rdram, ctx);\n", sym.name);
+        return;
+    }
     fmt::print(output_file, "{}(rdram, ctx);\n", sym.name);
 }
 
