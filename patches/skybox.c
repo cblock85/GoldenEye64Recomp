@@ -60,8 +60,266 @@ RECOMP_PATCH Gfx* skyRenderFull(Gfx* gdl, SkyRelated38* arg1, SkyRelated38* arg2
 
 #define PORTSKY 1
 
-#if 0
-RECOMP_PATCH Gfx* skyRender(Gfx* gdl) __attribute__((optnone)) {
+/*
+ * Sky and water for RT64.
+ *
+ * On console skyRender draws the sky and water as raw RDP triangles (skyRenderTri/skyRenderFull),
+ * which RT64 doesn't implement. With PORTSKY they are drawn as regular vertex triangles instead, the
+ * same approach as the Perfect Dark PC port. Differences from a normal draw:
+ *  - The polygon is drawn camera-relative with a rotation-only modelview, so the camera position never
+ *    goes through the s15.16 matrix translation.
+ *  - Vtx positions are s16, so they are scaled per polygon to fit and the scale is undone in the matrix.
+ *  - The raw triangles carried their own shading and texturing; here that state is set explicitly and
+ *    restored afterwards, so nothing leaks into the level rendering that follows.
+ *  - The game only builds the polygon for its native 4:3 view; skyRender widens the view it builds for
+ *    to cover the widescreen area (skyWidenView).
+ */
+#define SKY_VTX_RANGE 32000.0f
+#define SKY_TC_PERIOD (256.0f * 32.0f)
+// Water texture coordinates are stored divided by this and restored with tile shift 12 (x16).
+#define SKY_WATER_TC_DIV 16.0f
+#define SKY_WATER_TILE_SHIFT 12
+
+static f32 skyAbs(f32 v) {
+    return v < 0.0f ? -v : v;
+}
+
+enum SkyKind { SKY_CLOUDS, SKY_WATER, SKY_GROUND };
+
+static Gfx* skyDrawPolygon(Gfx* gdl, SkyRelated18* src, s32 count, f32 scale, enum SkyKind kind) {
+    bool water = kind == SKY_WATER;
+    struct CurrentEnvironmentRecord* env = fogGetCurrentEnvironmentp();
+    f32 shear;
+    Vtx* verts = dynAllocateVertices(count);
+    Mtx* mv_render = dynAllocateMatrix();
+    Mtxf mv;
+    Mtxf* w2s = camGetWorldToScreenMtxf();
+    f32 inv[3][3];
+    f32 det;
+    f32 eye[3];
+    f32 rel[5][3];
+    f32 zrange[2];
+    f32 depth;
+    f32 maxdepth = 0.0f;
+    f32 mindepth = 1e9f;
+    f32 pull;
+    f32 maxabs = 1.0f;
+    f32 fit;
+    f32 tc_s[5];
+    f32 tc_t[5];
+    f32 mean_s = 0.0f;
+    f32 mean_t = 0.0f;
+    f32 shift_s;
+    f32 shift_t;
+    s32 i;
+    s32 j;
+
+    // Draw camera-relative: the world-to-camera matrix carries the camera position as its translation,
+    // which can exceed the s15.16 range of an RSP matrix in large levels. Recover the eye position
+    // (row-vector convention: view = world * R + t, so eye = -t * R^-1), subtract it from the vertices
+    // and hand the RSP the rotation only.
+    det = w2s->m[0][0] * (w2s->m[1][1] * w2s->m[2][2] - w2s->m[1][2] * w2s->m[2][1]) -
+          w2s->m[0][1] * (w2s->m[1][0] * w2s->m[2][2] - w2s->m[1][2] * w2s->m[2][0]) +
+          w2s->m[0][2] * (w2s->m[1][0] * w2s->m[2][1] - w2s->m[1][1] * w2s->m[2][0]);
+    inv[0][0] = (w2s->m[1][1] * w2s->m[2][2] - w2s->m[1][2] * w2s->m[2][1]) / det;
+    inv[0][1] = (w2s->m[0][2] * w2s->m[2][1] - w2s->m[0][1] * w2s->m[2][2]) / det;
+    inv[0][2] = (w2s->m[0][1] * w2s->m[1][2] - w2s->m[0][2] * w2s->m[1][1]) / det;
+    inv[1][0] = (w2s->m[1][2] * w2s->m[2][0] - w2s->m[1][0] * w2s->m[2][2]) / det;
+    inv[1][1] = (w2s->m[0][0] * w2s->m[2][2] - w2s->m[0][2] * w2s->m[2][0]) / det;
+    inv[1][2] = (w2s->m[0][2] * w2s->m[1][0] - w2s->m[0][0] * w2s->m[1][2]) / det;
+    inv[2][0] = (w2s->m[1][0] * w2s->m[2][1] - w2s->m[1][1] * w2s->m[2][0]) / det;
+    inv[2][1] = (w2s->m[0][1] * w2s->m[2][0] - w2s->m[0][0] * w2s->m[2][1]) / det;
+    inv[2][2] = (w2s->m[0][0] * w2s->m[1][1] - w2s->m[0][1] * w2s->m[1][0]) / det;
+    for (j = 0; j < 3; j++) {
+        eye[j] = -(w2s->m[3][0] * inv[0][j] + w2s->m[3][1] * inv[1][j] + w2s->m[3][2] * inv[2][j]);
+    }
+
+    // src positions are world * scale.
+    for (i = 0; i < count; i++) {
+        rel[i][0] = src[i].unk00 / scale - eye[0];
+        rel[i][1] = src[i].unk04 / scale - eye[1];
+        rel[i][2] = src[i].unk08 / scale - eye[2];
+    }
+
+    // The plane lies up to 300000 units away, often past the far plane (night levels have short draw
+    // distances), and RT64 clips there. Scaling the polygon towards the eye leaves its screen position and
+    // perspective-correct texturing unchanged, and brings its depth inside the frustum. Near the camera
+    // (water below the player) the depth range can exceed what fits, and near clipping is the visible one,
+    // so the nearest vertex is kept at least 2x the near plane away.
+    viGetZRange(zrange);
+    for (i = 0; i < count; i++) {
+        depth = -(rel[i][0] * w2s->m[0][2] + rel[i][1] * w2s->m[1][2] + rel[i][2] * w2s->m[2][2]);
+        maxdepth = MAX(maxdepth, depth);
+        mindepth = MIN(mindepth, depth);
+    }
+    if (maxdepth > zrange[1] * 0.9f) {
+        pull = (zrange[1] * 0.9f) / maxdepth;
+        if (mindepth > 0.0f) {
+            pull = MIN(1.0f, MAX(pull, 2.0f * zrange[0] / mindepth));
+        }
+        for (i = 0; i < count; i++) {
+            for (j = 0; j < 3; j++) {
+                rel[i][j] *= pull;
+            }
+        }
+    }
+
+    for (i = 0; i < count; i++) {
+        for (j = 0; j < 3; j++) {
+            maxabs = MAX(maxabs, skyAbs(rel[i][j]));
+        }
+    }
+
+    // Vertices get rel * fit to use the s16 range; the rotation-only matrix undoes the fit.
+    // WaterConcavity: the game aims the corner rays that many pixels lower and then draws everything that
+    // many pixels higher. The second half is a view-space shear, y += C * c_scaley * -z (row vectors).
+    fit = SKY_VTX_RANGE / maxabs;
+    shear = -env->WaterConcavity * g_CurrentPlayer->c_scaley;
+    for (i = 0; i < 4; i++) {
+        for (j = 0; j < 4; j++) {
+            mv.m[i][j] = (i < 3 && j < 3) ? w2s->m[i][j] / fit : (i == j ? 1.0f : 0.0f);
+        }
+        if (i < 3) {
+            mv.m[i][1] += mv.m[i][2] * shear;
+        }
+    }
+    matrix_4x4_f32_to_s32(&mv, (Mtxf*) mv_render);
+
+    for (i = 0; i < count; i++) {
+        verts[i].v.ob[0] = rel[i][0] * fit;
+        verts[i].v.ob[1] = rel[i][1] * fit;
+        verts[i].v.ob[2] = rel[i][2] * fit;
+        verts[i].v.flag = 0;
+
+        if (water) {
+            // Same texture coordinates as the RDP path (unk0c/unk10 are s10.5 there), stored /16 to fit s16
+            // across a whole plane; the tiles below scale them back up.
+            tc_s[i] = src[i].unk0c / SKY_WATER_TC_DIV;
+            tc_t[i] = src[i].unk10 / SKY_WATER_TC_DIV;
+        } else {
+            tc_s[i] = src[i].unk0c;
+            tc_t[i] = src[i].unk10;
+        }
+        mean_s += tc_s[i] / count;
+        mean_t += tc_t[i] / count;
+
+        verts[i].v.cn[0] = src[i].r;
+        verts[i].v.cn[1] = src[i].g;
+        verts[i].v.cn[2] = src[i].b;
+        verts[i].v.cn[3] = src[i].a;
+    }
+
+    // Texture coordinates are world position based and reach far past the s16 range near the horizon,
+    // where clamping smears the texture into streaks. The texture repeats, so shift the polygon's
+    // coordinates towards zero by a whole number of repeats first. SKY_TC_PERIOD is 256 texels in
+    // s10.5, a multiple of the repeat length of any sky/water texture up to 256 wide.
+    shift_s = (s32) (mean_s / SKY_TC_PERIOD) * SKY_TC_PERIOD;
+    shift_t = (s32) (mean_t / SKY_TC_PERIOD) * SKY_TC_PERIOD;
+    for (i = 0; i < count; i++) {
+        verts[i].v.tc[0] = skyClamp(tc_s[i] - shift_s, -32768.0f, 32767.0f);
+        verts[i].v.tc[1] = skyClamp(tc_t[i] - shift_t, -32768.0f, 32767.0f);
+    }
+
+    gEXPushGeometryMode(gdl++);
+    gSPClearGeometryMode(gdl++, G_CULL_BOTH | G_LIGHTING | G_FOG | G_ZBUFFER | G_TEXTURE_GEN);
+    gSPSetGeometryMode(gdl++, G_SHADE | G_SHADING_SMOOTH);
+    gSPTexture(gdl++, 0xFFFF, 0xFFFF, water ? 1 : 0, G_TX_RENDERTILE, G_ON);
+
+    // Nothing in skyRender sets a triangle-capable cycle type for the sky when the whole screen is sky: the
+    // last state is usually fill mode from the Z buffer clear, which draws untextured. Water is set up by
+    // sub_GAME_7F09343C as a two-tile blend, which needs 2-cycle mode.
+    gEXPushOtherMode(gdl++);
+    gDPPipeSync(gdl++);
+    if (water) {
+        gDPSetCycleType(gdl++, G_CYC_2CYCLE);
+        gDPSetRenderMode(gdl++, G_RM_PASS, G_RM_OPA_SURF2);
+        // As sub_GAME_7F09343C sets them up, plus the shift that undoes SKY_WATER_TC_DIV.
+        gDPSetTile(gdl++, G_IM_FMT_RGBA, G_IM_SIZ_16b, 4, 0, 0, 0, 0, 5, SKY_WATER_TILE_SHIFT, 0, 5,
+                   SKY_WATER_TILE_SHIFT);
+        gDPSetTile(gdl++, G_IM_FMT_RGBA, G_IM_SIZ_16b, 4, 0, 1, 0, 0, 5, SKY_WATER_TILE_SHIFT, 0, 5,
+                   SKY_WATER_TILE_SHIFT);
+    } else {
+        gDPSetCycleType(gdl++, G_CYC_1CYCLE);
+        gDPSetRenderMode(gdl++, G_RM_OPA_SURF, G_RM_OPA_SURF2);
+    }
+    gDPSetTexturePersp(gdl++, G_TP_PERSP);
+    if (kind == SKY_GROUND) {
+        // Below the horizon without water the game fills with the environment colour.
+        gDPSetCombineMode(gdl++, G_CC_SHADE, G_CC_SHADE);
+        for (i = 0; i < count; i++) {
+            verts[i].v.cn[0] = env->Red;
+            verts[i].v.cn[1] = env->Green;
+            verts[i].v.cn[2] = env->Blue;
+            verts[i].v.cn[3] = 0xFF;
+        }
+    }
+
+    // OS_K0_TO_PHYSICAL rather than osVirtualToPhysical: that one is replaced by the runtime, and calling the
+    // game's copy from a patch returns garbage.
+    gSPMatrix(gdl++, OS_K0_TO_PHYSICAL(mv_render), G_MTX_MODELVIEW | G_MTX_LOAD | G_MTX_PUSH);
+    gSPVertex(gdl++, OS_K0_TO_PHYSICAL(verts), count, 0);
+
+    // Same triangulation as the original skyRenderTri calls.
+    if (count == 4) {
+        gSP4Triangles(gdl++, 0, 1, 3, 3, 2, 0, 0, 0, 0, 0, 0, 0);
+    } else if (count == 5) {
+        gSP4Triangles(gdl++, 0, 1, 2, 0, 2, 3, 0, 3, 4, 0, 0, 0);
+    } else if (count == 3) {
+        gSP4Triangles(gdl++, 0, 1, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+    }
+
+    gSPPopMatrix(gdl++, G_MTX_MODELVIEW);
+    gDPPipeSync(gdl++);
+    if (water) {
+        gDPSetTile(gdl++, G_IM_FMT_RGBA, G_IM_SIZ_16b, 4, 0, 0, 0, 0, 5, 0, 0, 5, 0);
+        gDPSetTile(gdl++, G_IM_FMT_RGBA, G_IM_SIZ_16b, 4, 0, 1, 0, 0, 5, 0, 0, 5, 0);
+    }
+    gEXPopOtherMode(gdl++);
+    gEXPopGeometryMode(gdl++);
+
+    return gdl;
+}
+
+#if 1
+static Gfx* skyRenderInner(Gfx* gdl);
+
+// The game builds the sky polygon from the corners of its native view, but RT64 renders widescreen and past
+// the top/bottom of the viewport. Build it for a larger view with the same centre and pixel scale; the extra
+// area is simply off-screen when it isn't needed. 2x width covers aspect ratios up to 8:3.
+#define SKY_WIDEN_X 2.0f
+#define SKY_WIDEN_Y 1.25f
+
+RECOMP_PATCH Gfx* skyRender(Gfx* gdl) {
+    struct player* p = g_CurrentPlayer;
+    f32 saved[6];
+
+    saved[0] = p->c_screenwidth;
+    saved[1] = p->c_screenheight;
+    saved[2] = p->c_screenleft;
+    saved[3] = p->c_screentop;
+    saved[4] = p->c_halfwidth;
+    saved[5] = p->c_halfheight;
+
+    p->c_screenleft -= p->c_screenwidth * (SKY_WIDEN_X - 1.0f) * 0.5f;
+    p->c_screentop -= p->c_screenheight * (SKY_WIDEN_Y - 1.0f) * 0.5f;
+    p->c_screenwidth *= SKY_WIDEN_X;
+    p->c_screenheight *= SKY_WIDEN_Y;
+    p->c_halfwidth *= SKY_WIDEN_X;
+    p->c_halfheight *= SKY_WIDEN_Y;
+
+    gdl = skyRenderInner(gdl);
+
+    p->c_screenwidth = saved[0];
+    p->c_screenheight = saved[1];
+    p->c_screenleft = saved[2];
+    p->c_screentop = saved[3];
+    p->c_halfwidth = saved[4];
+    p->c_halfheight = saved[5];
+
+    return gdl;
+}
+
+static Gfx* skyRenderInner(Gfx* gdl) __attribute__((optnone)) {
     coord3d sp6a4;
     coord3d sp698;
     coord3d sp68c;
@@ -153,28 +411,28 @@ RECOMP_PATCH Gfx* skyRender(Gfx* gdl) __attribute__((optnone)) {
     if (&sp6a4)
         ;
 
-    sub_GAME_7F093880(0.0f, 0.0f, &sp6a4);
-    sub_GAME_7F093880(getPlayer_c_screenwidth() - 0.1f, 0.0f, &sp698);
-    sub_GAME_7F093880(0.0f, getPlayer_c_screenheight() - 0.1f, &sp68c);
-    sub_GAME_7F093880(getPlayer_c_screenwidth() - 0.1f, getPlayer_c_screenheight() - 0.1f, &sp680);
+    skyGetWorldPosFromScreenPos(0.0f, 0.0f, &sp6a4);
+    skyGetWorldPosFromScreenPos(getPlayer_c_screenwidth() - 0.1f, 0.0f, &sp698);
+    skyGetWorldPosFromScreenPos(0.0f, getPlayer_c_screenheight() - 0.1f, &sp68c);
+    skyGetWorldPosFromScreenPos(getPlayer_c_screenwidth() - 0.1f, getPlayer_c_screenheight() - 0.1f, &sp680);
 
-    sp538 = sub_GAME_7F0938FC(&sp6a4, &sp644, &sp58c);
-    sp534 = sub_GAME_7F0938FC(&sp698, &sp638, &sp588);
-    sp530 = sub_GAME_7F0938FC(&sp68c, &sp62c, &sp584);
-    sp52c = sub_GAME_7F0938FC(&sp680, &sp620, &sp580);
+    sp538 = skyIsScreenCornerInSky(&sp6a4, &sp644, &sp58c);
+    sp534 = skyIsScreenCornerInSky(&sp698, &sp638, &sp588);
+    sp530 = skyIsScreenCornerInSky(&sp68c, &sp62c, &sp584);
+    sp52c = skyIsScreenCornerInSky(&sp680, &sp620, &sp580);
 
-    sub_GAME_7F093A78(&sp6a4, &sp5e4, &sp56c);
-    sub_GAME_7F093A78(&sp698, &sp5d8, &sp568);
-    sub_GAME_7F093A78(&sp68c, &sp5cc, &sp564);
-    sub_GAME_7F093A78(&sp680, &sp5c0, &sp560);
+    skyIsCornerInWater(&sp6a4, &sp5e4, &sp56c);
+    skyIsCornerInWater(&sp698, &sp5d8, &sp568);
+    skyIsCornerInWater(&sp68c, &sp5cc, &sp564);
+    skyIsCornerInWater(&sp680, &sp5c0, &sp560);
 
     if (sp538 != sp530) {
         sp54c = getPlayer_c_screentop() + getPlayer_c_screenheight() * (sp6a4.f[1] / (sp6a4.f[1] - sp68c.f[1]));
 
-        sub_GAME_7F093880(0.0f, sp54c, &sp65c);
-        sub_GAME_7F093BFC(&sp6a4, &sp68c, &sp65c);
-        sub_GAME_7F0938FC(&sp65c, &sp5fc, &sp574);
-        sub_GAME_7F093A78(&sp65c, &sp59c, &sp554);
+        skyGetWorldPosFromScreenPos(0.0f, sp54c, &sp65c);
+        skyCalculateEdgeVertex(&sp6a4, &sp68c, &sp65c);
+        skyIsScreenCornerInSky(&sp65c, &sp5fc, &sp574);
+        skyIsCornerInWater(&sp65c, &sp59c, &sp554);
     } else {
         sp54c = 0.0f;
     }
@@ -182,30 +440,30 @@ RECOMP_PATCH Gfx* skyRender(Gfx* gdl) __attribute__((optnone)) {
     if (sp534 != sp52c) {
         sp548 = getPlayer_c_screentop() + getPlayer_c_screenheight() * (sp698.f[1] / (sp698.f[1] - sp680.f[1]));
 
-        sub_GAME_7F093880(getPlayer_c_screenwidth() - 0.1f, sp548, &sp650);
-        sub_GAME_7F093BFC(&sp698, &sp680, &sp650);
-        sub_GAME_7F0938FC(&sp650, &sp5f0, &sp570);
-        sub_GAME_7F093A78(&sp650, &sp590, &sp550);
+        skyGetWorldPosFromScreenPos(getPlayer_c_screenwidth() - 0.1f, sp548, &sp650);
+        skyCalculateEdgeVertex(&sp698, &sp680, &sp650);
+        skyIsScreenCornerInSky(&sp650, &sp5f0, &sp570);
+        skyIsCornerInWater(&sp650, &sp590, &sp550);
     } else {
         sp548 = 0.0f;
     }
 
     if (sp538 != sp534) {
-        sub_GAME_7F093880(getPlayer_c_screenleft() +
+        skyGetWorldPosFromScreenPos(getPlayer_c_screenleft() +
                               getPlayer_c_screenwidth() * (sp6a4.f[1] / (sp6a4.f[1] - sp698.f[1])),
                           0.0f, &sp674);
-        sub_GAME_7F093BFC(&sp6a4, &sp698, &sp674);
-        sub_GAME_7F0938FC(&sp674, &sp614, &sp57c);
-        sub_GAME_7F093A78(&sp674, &sp5b4, &sp55c);
+        skyCalculateEdgeVertex(&sp6a4, &sp698, &sp674);
+        skyIsScreenCornerInSky(&sp674, &sp614, &sp57c);
+        skyIsCornerInWater(&sp674, &sp5b4, &sp55c);
     }
 
     if (sp530 != sp52c) {
         tmp = getPlayer_c_screenleft() + getPlayer_c_screenwidth() * (sp68c.f[1] / (sp68c.f[1] - sp680.f[1]));
 
-        sub_GAME_7F093880(tmp, getPlayer_c_screenheight() - 0.1f, &sp668);
-        sub_GAME_7F093BFC(&sp68c, &sp680, &sp668);
-        sub_GAME_7F0938FC(&sp668, &sp608, &sp578);
-        sub_GAME_7F093A78(&sp668, &sp5a8, &sp558);
+        skyGetWorldPosFromScreenPos(tmp, getPlayer_c_screenheight() - 0.1f, &sp668);
+        skyCalculateEdgeVertex(&sp68c, &sp680, &sp668);
+        skyIsScreenCornerInSky(&sp668, &sp608, &sp578);
+        skyIsCornerInWater(&sp668, &sp5a8, &sp558);
     }
 
     switch ((sp538 << 3) | (sp534 << 2) | (sp530 << 1) | sp52c) {
@@ -236,10 +494,10 @@ RECOMP_PATCH Gfx* skyRender(Gfx* gdl) __attribute__((optnone)) {
             sp43c[3].unk0c = sp5c0.f[0];
             sp43c[3].unk10 = sp5c0.f[2] + g_SkyCloudOffset;
 
-            sub_GAME_7F093FA4(&sp43c[0], sp56c);
-            sub_GAME_7F093FA4(&sp43c[1], sp568);
-            sub_GAME_7F093FA4(&sp43c[2], sp564);
-            sub_GAME_7F093FA4(&sp43c[3], sp560);
+            skyChooseWaterVtxColour(&sp43c[0], sp56c);
+            skyChooseWaterVtxColour(&sp43c[1], sp568);
+            skyChooseWaterVtxColour(&sp43c[2], sp564);
+            skyChooseWaterVtxColour(&sp43c[3], sp560);
             break;
 
         case 3:
@@ -265,10 +523,10 @@ RECOMP_PATCH Gfx* skyRender(Gfx* gdl) __attribute__((optnone)) {
             sp43c[3].unk0c = sp590.f[0];
             sp43c[3].unk10 = sp590.f[2] + g_SkyCloudOffset;
 
-            sub_GAME_7F093FA4(&sp43c[0], sp56c);
-            sub_GAME_7F093FA4(&sp43c[1], sp568);
-            sub_GAME_7F093FA4(&sp43c[2], sp554);
-            sub_GAME_7F093FA4(&sp43c[3], sp550);
+            skyChooseWaterVtxColour(&sp43c[0], sp56c);
+            skyChooseWaterVtxColour(&sp43c[1], sp568);
+            skyChooseWaterVtxColour(&sp43c[2], sp554);
+            skyChooseWaterVtxColour(&sp43c[3], sp550);
             break;
 
         case 12:
@@ -295,10 +553,10 @@ RECOMP_PATCH Gfx* skyRender(Gfx* gdl) __attribute__((optnone)) {
             sp43c[3].unk0c = sp59c.f[0];
             sp43c[3].unk10 = sp59c.f[2] + g_SkyCloudOffset;
 
-            sub_GAME_7F093FA4(&sp43c[0], sp560);
-            sub_GAME_7F093FA4(&sp43c[1], sp564);
-            sub_GAME_7F093FA4(&sp43c[2], sp550);
-            sub_GAME_7F093FA4(&sp43c[3], sp554);
+            skyChooseWaterVtxColour(&sp43c[0], sp560);
+            skyChooseWaterVtxColour(&sp43c[1], sp564);
+            skyChooseWaterVtxColour(&sp43c[2], sp550);
+            skyChooseWaterVtxColour(&sp43c[3], sp554);
             break;
 
         case 10:
@@ -324,10 +582,10 @@ RECOMP_PATCH Gfx* skyRender(Gfx* gdl) __attribute__((optnone)) {
             sp43c[3].unk0c = sp5a8.f[0];
             sp43c[3].unk10 = sp5a8.f[2] + g_SkyCloudOffset;
 
-            sub_GAME_7F093FA4(&sp43c[0], sp568);
-            sub_GAME_7F093FA4(&sp43c[1], sp560);
-            sub_GAME_7F093FA4(&sp43c[2], sp55c);
-            sub_GAME_7F093FA4(&sp43c[3], sp558);
+            skyChooseWaterVtxColour(&sp43c[0], sp568);
+            skyChooseWaterVtxColour(&sp43c[1], sp560);
+            skyChooseWaterVtxColour(&sp43c[2], sp55c);
+            skyChooseWaterVtxColour(&sp43c[3], sp558);
             break;
 
         case 5:
@@ -353,10 +611,10 @@ RECOMP_PATCH Gfx* skyRender(Gfx* gdl) __attribute__((optnone)) {
             sp43c[3].unk0c = sp5b4.f[0];
             sp43c[3].unk10 = sp5b4.f[2] + g_SkyCloudOffset;
 
-            sub_GAME_7F093FA4(&sp43c[0], sp564);
-            sub_GAME_7F093FA4(&sp43c[1], sp56c);
-            sub_GAME_7F093FA4(&sp43c[2], sp558);
-            sub_GAME_7F093FA4(&sp43c[3], sp55c);
+            skyChooseWaterVtxColour(&sp43c[0], sp564);
+            skyChooseWaterVtxColour(&sp43c[1], sp56c);
+            skyChooseWaterVtxColour(&sp43c[2], sp558);
+            skyChooseWaterVtxColour(&sp43c[3], sp55c);
             break;
 
         case 14:
@@ -377,9 +635,9 @@ RECOMP_PATCH Gfx* skyRender(Gfx* gdl) __attribute__((optnone)) {
             sp43c[2].unk0c = sp590.f[0];
             sp43c[2].unk10 = sp590.f[2] + g_SkyCloudOffset;
 
-            sub_GAME_7F093FA4(&sp43c[0], sp560);
-            sub_GAME_7F093FA4(&sp43c[1], sp558);
-            sub_GAME_7F093FA4(&sp43c[2], sp550);
+            skyChooseWaterVtxColour(&sp43c[0], sp560);
+            skyChooseWaterVtxColour(&sp43c[1], sp558);
+            skyChooseWaterVtxColour(&sp43c[2], sp550);
             break;
 
         case 13:
@@ -400,9 +658,9 @@ RECOMP_PATCH Gfx* skyRender(Gfx* gdl) __attribute__((optnone)) {
             sp43c[2].unk0c = sp5a8.f[0];
             sp43c[2].unk10 = sp5a8.f[2] + g_SkyCloudOffset;
 
-            sub_GAME_7F093FA4(&sp43c[0], sp564);
-            sub_GAME_7F093FA4(&sp43c[1], sp554);
-            sub_GAME_7F093FA4(&sp43c[2], sp558);
+            skyChooseWaterVtxColour(&sp43c[0], sp564);
+            skyChooseWaterVtxColour(&sp43c[1], sp554);
+            skyChooseWaterVtxColour(&sp43c[2], sp558);
             break;
 
         case 11:
@@ -423,9 +681,9 @@ RECOMP_PATCH Gfx* skyRender(Gfx* gdl) __attribute__((optnone)) {
             sp43c[2].unk0c = sp5b4.f[0];
             sp43c[2].unk10 = sp5b4.f[2] + g_SkyCloudOffset;
 
-            sub_GAME_7F093FA4(&sp43c[0], sp568);
-            sub_GAME_7F093FA4(&sp43c[1], sp550);
-            sub_GAME_7F093FA4(&sp43c[2], sp55c);
+            skyChooseWaterVtxColour(&sp43c[0], sp568);
+            skyChooseWaterVtxColour(&sp43c[1], sp550);
+            skyChooseWaterVtxColour(&sp43c[2], sp55c);
             break;
 
         case 7:
@@ -446,9 +704,9 @@ RECOMP_PATCH Gfx* skyRender(Gfx* gdl) __attribute__((optnone)) {
             sp43c[2].unk0c = sp59c.f[0];
             sp43c[2].unk10 = sp59c.f[2] + g_SkyCloudOffset;
 
-            sub_GAME_7F093FA4(&sp43c[0], sp56c);
-            sub_GAME_7F093FA4(&sp43c[1], sp55c);
-            sub_GAME_7F093FA4(&sp43c[2], sp554);
+            skyChooseWaterVtxColour(&sp43c[0], sp56c);
+            skyChooseWaterVtxColour(&sp43c[1], sp55c);
+            skyChooseWaterVtxColour(&sp43c[2], sp554);
             break;
 
         case 1:
@@ -479,11 +737,11 @@ RECOMP_PATCH Gfx* skyRender(Gfx* gdl) __attribute__((optnone)) {
             sp43c[4].unk0c = sp5a8.f[0];
             sp43c[4].unk10 = sp5a8.f[2] + g_SkyCloudOffset;
 
-            sub_GAME_7F093FA4(&sp43c[0], sp564);
-            sub_GAME_7F093FA4(&sp43c[1], sp56c);
-            sub_GAME_7F093FA4(&sp43c[2], sp568);
-            sub_GAME_7F093FA4(&sp43c[3], sp550);
-            sub_GAME_7F093FA4(&sp43c[4], sp558);
+            skyChooseWaterVtxColour(&sp43c[0], sp564);
+            skyChooseWaterVtxColour(&sp43c[1], sp56c);
+            skyChooseWaterVtxColour(&sp43c[2], sp568);
+            skyChooseWaterVtxColour(&sp43c[3], sp550);
+            skyChooseWaterVtxColour(&sp43c[4], sp558);
             break;
 
         case 2:
@@ -514,11 +772,11 @@ RECOMP_PATCH Gfx* skyRender(Gfx* gdl) __attribute__((optnone)) {
             sp43c[4].unk0c = sp59c.f[0];
             sp43c[4].unk10 = sp59c.f[2] + g_SkyCloudOffset;
 
-            sub_GAME_7F093FA4(&sp43c[0], sp56c);
-            sub_GAME_7F093FA4(&sp43c[1], sp568);
-            sub_GAME_7F093FA4(&sp43c[2], sp560);
-            sub_GAME_7F093FA4(&sp43c[3], sp558);
-            sub_GAME_7F093FA4(&sp43c[4], sp554);
+            skyChooseWaterVtxColour(&sp43c[0], sp56c);
+            skyChooseWaterVtxColour(&sp43c[1], sp568);
+            skyChooseWaterVtxColour(&sp43c[2], sp560);
+            skyChooseWaterVtxColour(&sp43c[3], sp558);
+            skyChooseWaterVtxColour(&sp43c[4], sp554);
             break;
 
         case 4:
@@ -549,11 +807,11 @@ RECOMP_PATCH Gfx* skyRender(Gfx* gdl) __attribute__((optnone)) {
             sp43c[4].unk0c = sp590.f[0];
             sp43c[4].unk10 = sp590.f[2] + g_SkyCloudOffset;
 
-            sub_GAME_7F093FA4(&sp43c[0], sp560);
-            sub_GAME_7F093FA4(&sp43c[1], sp564);
-            sub_GAME_7F093FA4(&sp43c[2], sp56c);
-            sub_GAME_7F093FA4(&sp43c[3], sp55c);
-            sub_GAME_7F093FA4(&sp43c[4], sp550);
+            skyChooseWaterVtxColour(&sp43c[0], sp560);
+            skyChooseWaterVtxColour(&sp43c[1], sp564);
+            skyChooseWaterVtxColour(&sp43c[2], sp56c);
+            skyChooseWaterVtxColour(&sp43c[3], sp55c);
+            skyChooseWaterVtxColour(&sp43c[4], sp550);
             break;
 
         case 8:
@@ -584,11 +842,11 @@ RECOMP_PATCH Gfx* skyRender(Gfx* gdl) __attribute__((optnone)) {
             sp43c[4].unk0c = sp5b4.f[0];
             sp43c[4].unk10 = sp5b4.f[2] + g_SkyCloudOffset;
 
-            sub_GAME_7F093FA4(&sp43c[0], sp568);
-            sub_GAME_7F093FA4(&sp43c[1], sp560);
-            sub_GAME_7F093FA4(&sp43c[2], sp564);
-            sub_GAME_7F093FA4(&sp43c[3], sp554);
-            sub_GAME_7F093FA4(&sp43c[4], sp55c);
+            skyChooseWaterVtxColour(&sp43c[0], sp568);
+            skyChooseWaterVtxColour(&sp43c[1], sp560);
+            skyChooseWaterVtxColour(&sp43c[2], sp564);
+            skyChooseWaterVtxColour(&sp43c[3], sp554);
+            skyChooseWaterVtxColour(&sp43c[4], sp55c);
             break;
 
         default:
@@ -621,6 +879,9 @@ RECOMP_PATCH Gfx* skyRender(Gfx* gdl) __attribute__((optnone)) {
         }
 
         if (!fogGetCurrentEnvironmentp()->IsWater) {
+#if PORTSKY
+            gdl = skyDrawPolygon(gdl, sp43c, s1, scale, SKY_GROUND);
+#else
             f32 f14 = 1279.0f;
             f32 f2 = 0.0f;
             f32 f16 = 959.0f;
@@ -649,6 +910,7 @@ RECOMP_PATCH Gfx* skyRender(Gfx* gdl) __attribute__((optnone)) {
             gDPFillRectangle(gdl++, (s32) (f14 * 0.25f), (s32) (f16 * 0.25f), (s32) (f2 * 0.25f), (s32) (f12 * 0.25f));
             gDPPipeSync(gdl++);
             gDPSetTexturePersp(gdl++, G_TP_PERSP);
+#endif
         } else {
             gDPPipeSync(gdl++);
 
@@ -676,46 +938,7 @@ RECOMP_PATCH Gfx* skyRender(Gfx* gdl) __attribute__((optnone)) {
                 gdl = skyRenderTri(gdl, &sp274[0], &sp274[1], &sp274[2], 130.0f, TRUE);
             }
 #else
-            {
-                s32 i;
-                Vtx* verts = dynAllocate7F0BD6C4(s1);
-                Mtxf mtx;
-                Mtx* mtx_render = dynAllocateMatrix();
-
-                matrix_4x4_multiply(camGetWorldToScreenMtxf(), &dword_CODE_bss_80079E98, &mtx);
-                matrix_4x4_f32_to_s32(&mtx, mtx_render);
-                // mtxF2L(&mtx, mtx_render);
-
-                gSPClearGeometryMode(gdl++, G_CULL_BOTH);
-
-                gSPMatrix(gdl++, OS_K0_TO_PHYSICAL(mtx_render), G_MTX_MODELVIEW | G_MTX_LOAD | G_MTX_PUSH);
-                gSPVertex(gdl++, osVirtualToPhysical(verts), s1, 0);
-
-                for (i = 0; i < s1; i++) {
-                    verts[i].v.ob[0] = sp43c[i].unk00;
-                    verts[i].v.ob[1] = sp43c[i].unk04;
-                    verts[i].v.ob[2] = sp43c[i].unk08;
-                    verts[i].v.tc[0] = skyClamp(sp43c[i].unk0c * 0.1f + g_SkyCloudOffset, -32768.f, 32767.f);
-                    verts[i].v.tc[1] =
-                        skyClamp((sp43c[i].unk10 - g_SkyCloudOffset) * 0.1f + g_SkyCloudOffset, -32768.f, 32767.f);
-                    verts[i].v.cn[0] = sp43c[i].r;
-                    verts[i].v.cn[1] = sp43c[i].g;
-                    verts[i].v.cn[2] = sp43c[i].b;
-                    verts[i].v.cn[3] = sp43c[i].a;
-                }
-
-                // gSP2Triangles(gdl++, 0, 1, 2, 0, 0, 2, 3, 0);
-
-                if (s1 == 4) {
-                    gDPTri2(gdl++, 0, 1, 3, 3, 2, 0);
-                } else if (s1 == 5) {
-                    gDPTri3(gdl++, 0, 1, 2, 0, 2, 3, 0, 3, 4);
-                } else if (s1 == 3) {
-                    gDPTri1(gdl++, 0, 1, 2);
-                }
-
-                // gSPPopMatrix(gdl++, G_MTX_MODELVIEW);
-            }
+            gdl = skyDrawPolygon(gdl, sp43c, s1, scale, SKY_WATER);
 #endif
         }
     }
@@ -1178,44 +1401,7 @@ RECOMP_PATCH Gfx* skyRender(Gfx* gdl) __attribute__((optnone)) {
         }
     }
 #else
-        {
-            s32 i;
-            static Vtx verts[10] = {0};
-            // Col* cols = dynAllocate(s1 * sizeof(Col));
-            Mtxf mtx;
-            static Mtx mtx_render[10] = {0};
-            matrix_4x4_multiply(camGetWorldToScreenMtxf(), &dword_CODE_bss_80079E98, &mtx);
-            matrix_4x4_f32_to_s32(&mtx, mtx_render);
-
-            // gSPSetExtraGeometryModeEXT(gdl++, 0x00000100);
-            gSPMatrix(gdl++, osVirtualToPhysical(mtx_render), G_MTX_MODELVIEW | G_MTX_LOAD | G_MTX_PUSH);
-            // gSPColor(gdl++, osVirtualToPhysical(cols), s1);
-            gSPVertex(gdl++, osVirtualToPhysical(verts), s1, 0);
-
-            for (i = 0; i < s1; ++i) {
-                verts[i].v.ob[0] = sp4b4[i].unk00;
-                verts[i].v.ob[1] = sp4b4[i].unk04;
-                verts[i].v.ob[2] = sp4b4[i].unk08;
-                verts[i].v.tc[0] = skyClamp(sp4b4[i].unk0c, -32768.f, 32767.f);
-                verts[i].v.tc[1] = skyClamp(sp4b4[i].unk10, -32768.f, 32767.f);
-                // verts[i].colour = i * 4;
-                verts[i].v.cn[0] = sp4b4[i].r;
-                verts[i].v.cn[1] = sp4b4[i].g;
-                verts[i].v.cn[2] = sp4b4[i].b;
-                verts[i].v.cn[3] = sp4b4[i].a;
-            }
-        }
-
-        if (s1 == 4) {
-            gDPTri2(gdl++, 0, 1, 3, 3, 2, 0);
-        } else if (s1 == 5) {
-            gDPTri3(gdl++, 0, 1, 2, 0, 2, 3, 0, 3, 4);
-        } else if (s1 == 3) {
-            gDPTri1(gdl++, 0, 1, 2);
-        }
-
-        // gSPPopMatrix(gdl++, G_MTX_MODELVIEW);
-        // gSPClearExtraGeometryModeEXT(gdl++, 0x00000100);
+        gdl = skyDrawPolygon(gdl, sp4b4, s1, scale, SKY_CLOUDS);
     }
 #endif
 
