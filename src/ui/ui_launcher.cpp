@@ -4,7 +4,10 @@
 #include "ultramodern/ultramodern.hpp"
 #include "RmlUi/Core.h"
 #include "nfd.h"
+#include <chrono>
+#include <cstdlib>
 #include <filesystem>
+#include <thread>
 #ifdef __APPLE__
 #include <dispatch/dispatch.h>
 #include <pthread.h>
@@ -77,6 +80,16 @@ class LauncherMenu : public recompui::MenuController {
 public:
     LauncherMenu() {
 		mm_rom_valid = recomp::is_rom_valid(supported_games[0].game_id);
+
+        // Test harness (tools/harness.sh): press "Start" once the UI and renderer are up. The launcher
+        // is constructed while the UI is still initialising, so starting the game here directly crashes.
+        if (mm_rom_valid && getenv("GE_HARNESS_STAGE") != nullptr) {
+            std::thread([] {
+                std::this_thread::sleep_for(std::chrono::seconds(2));
+                recomp::start_game(supported_games[0].game_id);
+                recompui::set_current_menu(recompui::Menu::None);
+            }).detach();
+        }
     }
 	~LauncherMenu() override {
 

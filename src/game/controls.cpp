@@ -1,4 +1,5 @@
 #include <array>
+#include <cstdlib>
 
 #include "librecomp/helpers.hpp"
 #include "recomp_input.h"
@@ -107,6 +108,13 @@ bool recomp::get_n64_input(int controller_num, uint16_t* buttons_out, float* x_o
         cur_y = recomp::get_input_analog(keyboard_input_mappings[(size_t)GameInput::Y_AXIS_POS])
                 - recomp::get_input_analog(keyboard_input_mappings[(size_t)GameInput::Y_AXIS_NEG]) + joystick_y;
     }
+
+    // Test harness (tools/harness.sh): GE_HARNESS_BUTTONS=<N64 button mask> holds those buttons, e.g. 0x0010 = R.
+    static const uint16_t harness_buttons = [] {
+        const char* value = getenv("GE_HARNESS_BUTTONS");
+        return value != nullptr ? (uint16_t) strtoul(value, nullptr, 0) : (uint16_t) 0;
+    }();
+    cur_buttons |= harness_buttons;
 
     *buttons_out = cur_buttons;
     *x_out = std::clamp(cur_x * 0.65f, -1.0f, 1.0f);

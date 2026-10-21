@@ -473,6 +473,25 @@ void InitFrameRateControl(void)
 extern s32 g_DebugMode;
 extern s32 g_DebugHighlightedOption;
 
+// Test harness (tools/harness.sh): end the intro/swirl the way pressing a button does, then hold the look
+// angle. Runs every frame for every player, in all camera modes. No-op unless GE_HARNESS_LOOK is set.
+static void harnessTick(void) {
+    s32 look = recomp_get_harness_look();
+
+    if (look <= -1000) {
+        return;
+    }
+
+    if (g_CameraMode == CAMERAMODE_INTRO || g_CameraMode == CAMERAMODE_FADESWIRL || g_CameraMode == CAMERAMODE_SWIRL) {
+        if (recomp_get_harness_skip()) {
+            g_CameraAfterCinema = CAMERAMODE_INTRO;
+        }
+    } else if (g_CameraMode == CAMERAMODE_FP) {
+        g_CurrentPlayer->vv_verta = look;
+        g_CurrentPlayer->speedverta = 0.0f;
+    }
+}
+
 RECOMP_PATCH void bossMainloop(void) {
     // declarations
 
@@ -701,6 +720,7 @@ RECOMP_PATCH void bossMainloop(void) {
                                     localPlayer = g_CurrentPlayer;
                                     viSetViewPosition(localPlayer->viewleft, localPlayer->viewtop);
 
+                                    harnessTick();
                                     lvlViewMoveTick();
                                 }
                             }
@@ -832,6 +852,14 @@ RECOMP_PATCH void interface_menu00_legalscreen(void)
 #else
 #define MENU_LEGALSCREEN_MENU_TIMER_MAX (60 * 4 + 1)
 #endif
+    // Test harness (tools/harness.sh): boot straight into GE_HARNESS_STAGE.
+    s32 harness_stage = recomp_get_harness_stage();
+
+    if (harness_stage >= 0) {
+        selected_stage = harness_stage;
+        frontChangeMenu(MENU_RUN_STAGE, TRUE);
+        return;
+    }
 
     viSetFovY(FOV_Y_F);
     viSetAspect(ASPECT_RATIO_SD);

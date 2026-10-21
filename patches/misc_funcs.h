@@ -17,4 +17,8 @@ DECLARE_FUNC(s32, osPiStartDma_recomp, OSIoMesg* mb, s32 priority, s32 direction
              size_t nbytes, OSMesgQueue* mq);
 DECLARE_FUNC(s32, osPfsInit_recomp, OSMesgQueue*, OSPfs*, int);
 DECLARE_FUNC(s32, osMotorInit_recomp, OSMesgQueue*, OSPfs*, int);
+DECLARE_FUNC(s32, recomp_get_harness_stage);
+DECLARE_FUNC(s32, recomp_get_harness_look);
+DECLARE_FUNC(s32, recomp_get_harness_skip);
+DECLARE_FUNC(s32, recomp_get_harness_dbg);
 #endif
